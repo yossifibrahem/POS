@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -183,19 +183,18 @@ export default function NewSale() {
           </Select>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-h-[70vh] overflow-y-auto">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-h-[70vh] overflow-y-auto">
           {filteredProducts.map((p) => (
             <Card
               key={p.id}
               className={`cursor-pointer transition hover:shadow-md ${p.stock === 0 ? "opacity-50 pointer-events-none" : ""}`}
               onClick={() => p.stock > 0 && addToCart(p)}
             >
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
+              </CardHeader>
               <CardContent className="p-3">
                 <div className="flex items-center justify-between">
-                  <p className="font-medium text-sm">{p.name}</p>
-                  <Plus className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="mt-1 flex items-center justify-between">
                   <span className="text-sm font-semibold">${Number(p.price).toFixed(2)}</span>
                   <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
                     {p.stock} left
@@ -235,30 +234,32 @@ export default function NewSale() {
             ) : (
               <div className="space-y-3">
                 {cart.map((item) => (
-                  <div key={item.product.id} className="flex items-center gap-3 rounded border p-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{item.product.name}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <Input className="w-14 h-6 text-center text-sm p-0" type="number" min="1" max={item.product.stock} value={item.quantity}
-                          onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 1)} />
-                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.product.id, item.quantity + 1)}>
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                        <span className="text-xs text-muted-foreground">×</span>
-                        <Input className="w-20 h-6 text-sm p-1" type="number" min="0" step="0.01" value={item.unit_price}
-                          onChange={(e) => updatePrice(item.product.id, parseFloat(e.target.value) || 0)} />
+                  <Card key={item.product.id} className="p-0">
+                    <CardContent className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{item.product.name}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <Input className="w-14 h-6 text-center text-sm p-0" type="number" min="1" max={item.product.stock} value={item.quantity}
+                            onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 1)} />
+                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.product.id, item.quantity + 1)}>
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                          <span className="text-xs text-muted-foreground">×</span>
+                          <Input className="w-20 h-6 text-sm p-1" type="number" min="0" step="0.01" value={item.unit_price}
+                            onChange={(e) => updatePrice(item.product.id, parseFloat(e.target.value) || 0)} />
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold">${(item.quantity * item.unit_price).toFixed(2)}</p>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(item.product.id)}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold">${(item.quantity * item.unit_price).toFixed(2)}</p>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(item.product.id)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             )}

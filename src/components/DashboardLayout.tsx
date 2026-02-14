@@ -37,9 +37,9 @@ export default function DashboardLayout() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full flex-col md:flex-row">
         <Sidebar>
-          <SidebarHeader className="border-b px-4 py-3">
+          <SidebarHeader className="border-b px-4 py-2">
             <h2 className="text-lg font-bold tracking-tight">Store Admin</h2>
           </SidebarHeader>
           <SidebarContent>
@@ -77,7 +77,7 @@ export default function DashboardLayout() {
           <header className="flex h-12 items-center border-b px-4">
             <SidebarTrigger />
           </header>
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-4 md:p-6">
             <Outlet />
           </div>
         </SidebarInset>

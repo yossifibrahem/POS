@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+// replaced table layout with responsive card grid for better mobile UX
 import {
   Select,
   SelectContent,
@@ -166,54 +166,52 @@ export default function CartDetail() {
       )}
 
       {items.length > 0 && (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Unit Price</TableHead>
-                <TableHead className="text-right">Line Total</TableHead>
-                <TableHead className="w-[180px] text-right">Return</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">{item.products?.name}</TableCell>
-                  <TableCell className="text-right">{item.quantity}</TableCell>
-                  <TableCell className="text-right">${Number(item.unit_price).toFixed(2)}</TableCell>
-                  <TableCell className="text-right font-semibold">${(item.quantity * Number(item.unit_price)).toFixed(2)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Select
-                        value={String(returnQty[item.id] ?? 1)}
-                        onValueChange={(v) => setReturnQty((p) => ({ ...p, [item.id]: parseInt(v, 10) }))}
-                      >
-                        <SelectTrigger className="h-8 w-16">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from({ length: item.quantity }, (_, i) => i + 1).map((n) => (
-                            <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1 h-8"
-                        onClick={() => handlePartialReturn(item)}
-                        disabled={returningId === item.id}
-                      >
-                        {returningId === item.id ? "..." : <><RotateCcw className="h-3 w-3" /> Return</>}
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => (
+            <Card key={item.id}>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">{item.products?.name}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span>Qty</span>
+                  <span className="font-medium">{item.quantity}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span>Unit Price</span>
+                  <span className="font-medium">${Number(item.unit_price).toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span>Line Total</span>
+                  <span className="font-semibold">${(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Select
+                    value={String(returnQty[item.id] ?? 1)}
+                    onValueChange={(v) => setReturnQty((p) => ({ ...p, [item.id]: parseInt(v, 10) }))}
+                  >
+                    <SelectTrigger className="h-8 w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: item.quantity }, (_, i) => i + 1).map((n) => (
+                        <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1 h-8"
+                    onClick={() => handlePartialReturn(item)}
+                    disabled={returningId === item.id}
+                  >
+                    {returningId === item.id ? "..." : <><RotateCcw className="h-3 w-3" /> Return</>}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 

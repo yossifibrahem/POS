@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 export default function SalesHistory() {
   const navigate = useNavigate();
@@ -36,30 +36,24 @@ export default function SalesHistory() {
         </div>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead className="text-right">Items</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {carts.map((c) => (
-              <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/sales/${c.id}`)}>
-                <TableCell>{new Date(c.created_at).toLocaleString()}</TableCell>
-                <TableCell>{(c.customers as any)?.full_name || "Unknown"}</TableCell>
-                <TableCell className="text-right">{(c.sold_products as any[])?.length || 0}</TableCell>
-                <TableCell className="text-right font-semibold">${Number(c.total).toFixed(2)}</TableCell>
-              </TableRow>
-            ))}
-            {carts.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No sales found</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {carts.map((c) => (
+          <Card key={c.id} className="cursor-pointer" onClick={() => navigate(`/dashboard/sales/${c.id}`)}>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">{new Date(c.created_at).toLocaleString()}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="text-sm text-muted-foreground">{(c.customers as any)?.full_name || "Unknown"}</div>
+              <div className="flex items-center justify-between">
+                <div className="text-sm">Items: {(c.sold_products as any[])?.length || 0}</div>
+                <div className="font-semibold">${Number(c.total).toFixed(2)}</div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {carts.length === 0 && (
+          <div className="col-span-full text-center text-muted-foreground py-8">No sales found</div>
+        )}
       </div>
     </div>
   );

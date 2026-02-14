@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Shield, ShieldOff, Search } from "lucide-react";
 
@@ -70,46 +70,39 @@ export default function Customers() {
         <Input placeholder="Search by name or email..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead className="text-right">Orders</TableHead>
-              <TableHead>Joined</TableHead>
-              <TableHead className="w-24" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="font-medium">{c.full_name}</TableCell>
-                <TableCell>{c.email}</TableCell>
-                <TableCell>{c.phone || "—"}</TableCell>
-                <TableCell>{c.is_admin ? <Badge>Admin</Badge> : <Badge variant="secondary">Customer</Badge>}</TableCell>
-                <TableCell className="text-right">{c.cart_count}</TableCell>
-                <TableCell>{new Date(c.created_at).toLocaleDateString()}</TableCell>
-                <TableCell>
-                  {c.is_admin ? (
-                    <Button variant="ghost" size="icon" title="Demote" onClick={() => setDemoteTarget(c)}>
-                      <ShieldOff className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Button variant="ghost" size="icon" title="Promote to Admin" onClick={() => setPromoteTarget(c)}>
-                      <Shield className="h-4 w-4" />
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No customers found</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {filtered.map((c) => (
+          <Card key={c.id}>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">{c.full_name}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="text-sm text-muted-foreground">{c.email}</div>
+              <div className="flex items-center justify-between text-sm">
+                <div>{c.phone || "—"}</div>
+                <div>{c.is_admin ? <Badge>Admin</Badge> : <Badge variant="secondary">Customer</Badge>}</div>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <div className="text-muted-foreground">Orders: {c.cart_count}</div>
+                <div className="text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</div>
+              </div>
+              <div className="flex justify-end">
+                {c.is_admin ? (
+                  <Button variant="ghost" size="icon" title="Demote" onClick={() => setDemoteTarget(c)}>
+                    <ShieldOff className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="icon" title="Promote to Admin" onClick={() => setPromoteTarget(c)}>
+                    <Shield className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {filtered.length === 0 && (
+          <div className="col-span-full text-center text-muted-foreground py-8">No customers found</div>
+        )}
       </div>
 
       <AlertDialog open={!!promoteTarget} onOpenChange={() => setPromoteTarget(null)}>
