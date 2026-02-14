@@ -4,10 +4,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { Search, Plus, Minus, X, ShoppingCart } from "lucide-react";
 
@@ -44,6 +45,7 @@ export default function NewSale() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [notes, setNotes] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
     supabase.from("products").select("*, categories(name)").order("name").then(({ data }) => setProducts(data || []));
@@ -125,6 +127,7 @@ export default function NewSale() {
     setCart([]);
     setCustomerId("");
     setNotes("");
+    setCartOpen(false);
     setProcessing(false);
 
     // Reload products for updated stock
@@ -142,59 +145,77 @@ export default function NewSale() {
     !customerSearch || c.full_name.toLowerCase().includes(customerSearch.toLowerCase()) || c.email.toLowerCase().includes(customerSearch.toLowerCase())
   );
 
+  const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0);
+
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">New Sale</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">New Sale</h1>
+        <Button
+          variant="outline"
+          size="lg"
+          className="relative gap-2"
+          onClick={() => setCartOpen(true)}
+        >
+          <ShoppingCart className="h-5 w-5" />
+          Cart
+          {cartItemCount > 0 && (
+            <Badge variant="default" className="ml-1 h-5 min-w-5 rounded-full px-1.5 text-xs">
+              {cartItemCount}
+            </Badge>
+          )}
+        </Button>
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Left: Product Picker */}
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search products..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-            </div>
-            <Select value={filterCat} onValueChange={setFilterCat}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="Category" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+      {/* Product Picker - full width */}
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search products..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-
-          <div className="grid gap-2 sm:grid-cols-2 max-h-[60vh] overflow-y-auto">
-            {filteredProducts.map((p) => (
-              <Card
-                key={p.id}
-                className={`cursor-pointer transition hover:shadow-md ${p.stock === 0 ? "opacity-50 pointer-events-none" : ""}`}
-                onClick={() => p.stock > 0 && addToCart(p)}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm">{p.name}</p>
-                    <Plus className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="mt-1 flex items-center justify-between">
-                    <span className="text-sm font-semibold">${Number(p.price).toFixed(2)}</span>
-                    <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
-                      {p.stock} left
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Select value={filterCat} onValueChange={setFilterCat}>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Right: Cart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-h-[70vh] overflow-y-auto">
+          {filteredProducts.map((p) => (
+            <Card
+              key={p.id}
+              className={`cursor-pointer transition hover:shadow-md ${p.stock === 0 ? "opacity-50 pointer-events-none" : ""}`}
+              onClick={() => p.stock > 0 && addToCart(p)}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-sm">{p.name}</p>
+                  <Plus className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-sm font-semibold">${Number(p.price).toFixed(2)}</span>
+                  <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
+                    {p.stock} left
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Cart slide-over from the right */}
+      <Sheet open={cartOpen} onOpenChange={setCartOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0">
+          <SheetHeader className="border-b px-6 py-4">
+            <SheetTitle className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5" /> Cart ({cart.length} items)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             {/* Customer selector */}
             <div className="space-y-2">
               <Label>Customer</Label>
@@ -212,7 +233,7 @@ export default function NewSale() {
             {cart.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">Click products to add them to the cart</p>
             ) : (
-              <div className="space-y-3 max-h-[40vh] overflow-y-auto">
+              <div className="space-y-3">
                 {cart.map((item) => (
                   <div key={item.product.id} className="flex items-center gap-3 rounded border p-2">
                     <div className="flex-1 min-w-0">
@@ -247,20 +268,20 @@ export default function NewSale() {
               <Label>Notes (optional)</Label>
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any notes about this sale..." rows={2} />
             </div>
+          </div>
 
-            {/* Total & Process */}
-            <div className="border-t pt-3">
-              <div className="flex items-center justify-between text-lg font-bold">
-                <span>Total</span>
-                <span>${total.toFixed(2)}</span>
-              </div>
-              <Button className="w-full mt-3" size="lg" disabled={processing || cart.length === 0} onClick={processSale}>
-                {processing ? "Processing..." : "Process Sale"}
-              </Button>
+          {/* Total & Process - sticky at bottom of sheet */}
+          <div className="border-t px-6 py-4 bg-background">
+            <div className="flex items-center justify-between text-lg font-bold">
+              <span>Total</span>
+              <span>${total.toFixed(2)}</span>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Button className="w-full mt-3" size="lg" disabled={processing || cart.length === 0} onClick={processSale}>
+              {processing ? "Processing..." : "Process Sale"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
