@@ -24,14 +24,12 @@ export default function Login() {
       return;
     }
 
-    // Check admin status
-    const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: data.user.id });
-    if (adminCheck) {
-      navigate("/dashboard");
-    } else {
-      navigate("/account");
-    }
+    // Navigate immediately and run admin check in background to avoid blocking UI
     setLoading(false);
+    navigate("/account");
+    supabase.rpc("is_admin", { _user_id: data.user.id }).then(({ data: adminCheck }) => {
+      if (adminCheck) navigate("/dashboard");
+    }).catch(() => {});
   };
 
   return (
