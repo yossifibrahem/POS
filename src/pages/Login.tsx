@@ -27,9 +27,14 @@ export default function Login() {
     // Navigate immediately and run admin check in background to avoid blocking UI
     setLoading(false);
     navigate("/account");
-    supabase.rpc("is_admin", { _user_id: data.user.id }).then(({ data: adminCheck }) => {
-      if (adminCheck) navigate("/dashboard");
-    }).catch(() => {});
+    (async () => {
+      try {
+        const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: data.user.id });
+        if (adminCheck) navigate("/dashboard");
+      } catch (e) {
+        // ignore background admin check errors
+      }
+    })();
   };
 
   return (
