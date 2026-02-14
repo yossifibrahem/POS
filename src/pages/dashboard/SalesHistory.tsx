@@ -36,9 +36,9 @@ export default function SalesHistory() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1">
         {carts.map((c) => (
-          <Card key={c.id} className="cursor-pointer" onClick={() => navigate(`/dashboard/sales/${c.id}`)}>
+          <Card key={c.id} className="cursor-pointer w-full" onClick={() => navigate(`/dashboard/sales/${c.id}`)}>
             <CardHeader>
               <CardTitle className="text-sm font-medium">{new Date(c.created_at).toLocaleString()}</CardTitle>
             </CardHeader>

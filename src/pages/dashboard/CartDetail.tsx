@@ -166,9 +166,9 @@ export default function CartDetail() {
       )}
 
       {items.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1">
           {items.map((item) => (
-            <Card key={item.id}>
+            <Card key={item.id} className="w-full">
               <CardHeader>
                 <CardTitle className="text-sm font-medium">{item.products?.name}</CardTitle>
               </CardHeader>
