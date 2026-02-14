@@ -57,7 +57,7 @@ export default function DashboardLayout() {
                             isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : ""
                           }
                         >
-                          <item.icon className="h-4 w-4" />
+                          <item.icon className="h-6 w-6" />
                           <span>{item.title}</span>
                         </NavLink>
                       </SidebarMenuButton>
@@ -69,7 +69,7 @@ export default function DashboardLayout() {
           </SidebarContent>
           <div className="mt-auto border-t p-3">
             <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4" /> Sign Out
+              <LogOut className="h-6 w-6" /> Sign Out
             </Button>
           </div>
         </Sidebar>

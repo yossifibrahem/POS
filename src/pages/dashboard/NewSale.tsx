@@ -187,18 +187,22 @@ export default function NewSale() {
           {filteredProducts.map((p) => (
             <Card
               key={p.id}
-              className={`cursor-pointer transition hover:shadow-md ${p.stock === 0 ? "opacity-50 pointer-events-none" : ""}`}
-              onClick={() => p.stock > 0 && addToCart(p)}
+              className={`transition hover:shadow-md ${p.stock === 0 ? "opacity-50" : ""}`}
             >
               <CardHeader>
                 <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
               </CardHeader>
               <CardContent className="p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold">${Number(p.price).toFixed(2)}</span>
-                  <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
-                    {p.stock} left
-                  </Badge>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold">${Number(p.price).toFixed(2)}</span>
+                    <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
+                      {p.stock} left
+                    </Badge>
+                  </div>
+                  <Button size="sm" onClick={(e) => { e.stopPropagation(); if (p.stock > 0) addToCart(p); }} disabled={p.stock === 0}>
+                    Add
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -230,7 +234,7 @@ export default function NewSale() {
 
             {/* Cart items */}
             {cart.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Click products to add them to the cart</p>
+              <p className="text-sm text-muted-foreground text-center py-8">Use the "Add" button on products to add them to the cart</p>
             ) : (
               <div className="space-y-3">
                 {cart.map((item) => (
