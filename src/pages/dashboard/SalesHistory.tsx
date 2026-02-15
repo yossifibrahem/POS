@@ -30,7 +30,7 @@ export default function SalesHistory() {
 
   const load = async () => {
     setLoading(true);
-    let query = supabase.from("carts").select("*, customers(full_name), sold_products(quantity)").order("created_at", { ascending: false });
+    let query = supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity)").order("created_at", { ascending: false });
     if (dateFrom) query = query.gte("created_at", dateFrom);
     if (dateTo) query = query.lte("created_at", dateTo + "T23:59:59");
     const { data } = await query;
@@ -129,7 +129,11 @@ export default function SalesHistory() {
                 <CardTitle className="text-sm font-medium">{new Date(c.created_at).toLocaleString()}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <div className="text-sm text-muted-foreground">{(c.customers as any)?.full_name || "Unknown"}</div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
+                  <span>{(c.customers as any)?.full_name || "Unknown"}</span>
+                  <span className="hidden sm:inline">•</span>
+                  <span>Processed by: {((c.admins as any)?.customers as any)?.full_name || "Unknown"}</span>
+                </div>
                 <div className="flex items-center justify-between">
                   <div className="text-sm">Items: {(c.sold_products as any[])?.length || 0}</div>
                   <div className="font-semibold">${Number(c.total).toFixed(2)}</div>

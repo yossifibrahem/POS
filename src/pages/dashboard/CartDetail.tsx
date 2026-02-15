@@ -13,7 +13,7 @@ import {
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
-type CartRow = { id: string; total: number; created_at: string; notes?: string | null; customers?: { full_name?: string; email?: string } };
+type CartRow = { id: string; total: number; created_at: string; notes?: string | null; customers?: { full_name?: string; email?: string }; admins?: { customers?: { full_name?: string } } };
 type SoldItemRow = { id: string; product_id: string; quantity: number; unit_price: number; products?: { name?: string; stock?: number } };
 
 export default function CartDetail() {
@@ -27,7 +27,7 @@ export default function CartDetail() {
   const loadData = useCallback(async () => {
     if (!cartId) return;
     const [cartRes, itemsRes] = await Promise.all([
-      supabase.from("carts").select("*, customers(full_name, email)").eq("id", cartId).single(),
+      supabase.from("carts").select("*, customers(full_name, email), admins(customers:customers(full_name))").eq("id", cartId).single(),
       supabase.from("sold_products").select("*, products(name, stock)").eq("cart_id", cartId),
     ]);
     if (cartRes.data) setCart(cartRes.data);
@@ -100,6 +100,7 @@ export default function CartDetail() {
         </CardHeader>
         <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
           <p><span className="font-medium">Customer:</span> {cart.customers?.full_name}</p>
+          <p><span className="font-medium">Processed by:</span> {cart.admins?.customers?.full_name || "Unknown"}</p>
           <p><span className="font-medium">Date:</span> {new Date(cart.created_at).toLocaleString()}</p>
           <p><span className="font-medium">Total:</span> ${Number(cart.total).toFixed(2)}</p>
           {cart.notes && <p className="sm:col-span-2"><span className="font-medium">Notes:</span> {cart.notes}</p>}
