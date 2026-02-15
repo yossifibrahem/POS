@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-// replaced table layout with responsive card grid for better mobile UX
 import {
   Select,
   SelectContent,
@@ -11,16 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,8 +23,6 @@ export default function CartDetail() {
   const [items, setItems] = useState<SoldItemRow[]>([]);
   const [returningId, setReturningId] = useState<string | null>(null);
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
-  const [fullReturnOpen, setFullReturnOpen] = useState(false);
-  const [processing, setProcessing] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!cartId) return;
@@ -50,33 +37,6 @@ export default function CartDetail() {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const handleFullReturn = async () => {
-    if (!cartId || !items.length) return;
-    setProcessing(true);
-    try {
-      for (const item of items) {
-        const currentStock = item.products?.stock ?? 0;
-        const { error } = await supabase
-          .from("products")
-          .update({ stock: currentStock + item.quantity })
-          .eq("id", item.product_id);
-        if (error) throw error;
-      }
-      const { error: deleteError } = await supabase.from("sold_products").delete().eq("cart_id", cartId);
-      if (deleteError) throw deleteError;
-      const { error: cartError } = await supabase.from("carts").update({ total: 0 }).eq("id", cartId);
-      if (cartError) throw cartError;
-      setCart((prev) => (prev ? { ...prev, total: 0 } : null));
-      setItems([]);
-      setFullReturnOpen(false);
-      toast.success("Sale returned. Stock has been restored.");
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Return failed");
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   const handlePartialReturn = async (item: SoldItemRow) => {
     const qty = returnQty[item.id] ?? 1;
@@ -130,8 +90,6 @@ export default function CartDetail() {
 
   if (!cart) return <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
-  const isReturned = items.length === 0 && Number(cart.total) === 0;
-
   return (
     <div className="space-y-4">
       <Button variant="ghost" onClick={() => navigate(-1)} className="gap-2"><ArrowLeft className="h-4 w-4" /> Back</Button>
@@ -139,17 +97,6 @@ export default function CartDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>Sale Details</CardTitle>
-          {!isReturned && items.length > 0 && (
-<Button
-              variant="outline"
-              size="sm"
-              className="gap-2 text-red-500 hover:text-red-600"
-              onClick={() => setFullReturnOpen(true)}
-              disabled={processing}
-            >
-              <RotateCcw className="h-4 w-4" /> Return entire sale
-            </Button>
-          )}
         </CardHeader>
         <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
           <p><span className="font-medium">Customer:</span> {cart.customers?.full_name}</p>
@@ -158,12 +105,6 @@ export default function CartDetail() {
           {cart.notes && <p className="sm:col-span-2"><span className="font-medium">Notes:</span> {cart.notes}</p>}
         </CardContent>
       </Card>
-
-      {isReturned && (
-        <div className="rounded-md border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
-          This sale has been returned. Stock was restored.
-        </div>
-      )}
 
       {items.length > 0 && (
         <div className="grid gap-4 grid-cols-1">
@@ -199,7 +140,7 @@ export default function CartDetail() {
                       ))}
                     </SelectContent>
                   </Select>
-<Button
+                  <Button
                     variant="ghost"
                     size="sm"
                     className="gap-1 h-8 text-red-500 hover:text-red-600"
@@ -215,22 +156,12 @@ export default function CartDetail() {
         </div>
       )}
 
-      <AlertDialog open={fullReturnOpen} onOpenChange={setFullReturnOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Return entire sale?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Stock will be restored for all items and the sale total will be set to $0. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={processing}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleFullReturn} disabled={processing}>
-              {processing ? "Returning..." : "Return sale"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {items.length === 0 && (
+        <div className="rounded-md border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
+          No items in this sale.
+        </div>
+      )}
     </div>
   );
 }
+
