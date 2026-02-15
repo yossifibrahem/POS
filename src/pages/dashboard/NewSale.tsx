@@ -50,8 +50,17 @@ export default function NewSale() {
   useEffect(() => {
     supabase.from("products").select("*, categories(name)").order("name").then(({ data }) => setProducts(data || []));
     supabase.from("categories").select("*").order("name").then(({ data }) => setCategories(data || []));
-    supabase.from("customers").select("id, full_name, email").order("full_name").then(({ data }) => setCustomers(data || []));
-  }, []);
+    supabase.from("customers").select("id, full_name, email").order("full_name").then(({ data }) => {
+      setCustomers(data || []);
+      // Auto-select the customer if the logged-in user is an admin (their ID matches a customer ID)
+      if (user) {
+        const matchingCustomer = data?.find((c) => c.id === user.id);
+        if (matchingCustomer) {
+          setCustomerId(user.id);
+        }
+      }
+    });
+  }, [user]);
 
   const addToCart = (product: Product) => {
     setCart((prev) => {
