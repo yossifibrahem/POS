@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Package, Users, ShoppingCart, DollarSign, AlertTriangle } from "lucide-react";
 
 export default function Overview() {
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ products: 0, customers: 0, salesToday: 0, revenueToday: 0 });
   const [recentCarts, setRecentCarts] = useState<any[]>([]);
   const [lowStock, setLowStock] = useState<any[]>([]);
@@ -28,6 +30,7 @@ export default function Overview() {
       });
       setRecentCarts(recentRes.data || []);
       setLowStock(lowStockRes.data || []);
+      setLoading(false);
     });
   }, []);
 
@@ -43,24 +46,52 @@ export default function Overview() {
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((s) => (
-          <Card key={s.label}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{s.label}</CardTitle>
-              <s.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{s.value}</p>
-            </CardContent>
-          </Card>
-        ))}
+        {loading ? (
+          <>
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i}>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-4 rounded-full" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-16" />
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        ) : (
+          statCards.map((s) => (
+            <Card key={s.label}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{s.label}</CardTitle>
+                <s.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{s.value}</p>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader><CardTitle className="text-base">Recent Sales</CardTitle></CardHeader>
           <CardContent>
-            {recentCarts.length === 0 ? (
+            {loading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between rounded border p-2">
+                    <div className="space-y-1">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                    <Skeleton className="h-5 w-12" />
+                  </div>
+                ))}
+              </div>
+            ) : recentCarts.length === 0 ? (
               <p className="text-sm text-muted-foreground">No sales yet.</p>
             ) : (
               <div className="space-y-2">
@@ -85,7 +116,16 @@ export default function Overview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {lowStock.length === 0 ? (
+            {loading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between rounded border p-2">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-5 w-10" />
+                  </div>
+                ))}
+              </div>
+            ) : lowStock.length === 0 ? (
               <p className="text-sm text-muted-foreground">All products well stocked.</p>
             ) : (
               <div className="space-y-2">
