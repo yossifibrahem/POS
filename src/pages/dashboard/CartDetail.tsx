@@ -140,10 +140,10 @@ export default function CartDetail() {
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>Sale Details</CardTitle>
           {!isReturned && items.length > 0 && (
-            <Button
+<Button
               variant="outline"
               size="sm"
-              className="gap-2"
+              className="gap-2 text-red-500 hover:text-red-600"
               onClick={() => setFullReturnOpen(true)}
               disabled={processing}
             >
@@ -199,10 +199,10 @@ export default function CartDetail() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button
+<Button
                     variant="ghost"
                     size="sm"
-                    className="gap-1 h-8"
+                    className="gap-1 h-8 text-red-500 hover:text-red-600"
                     onClick={() => handlePartialReturn(item)}
                     disabled={returningId === item.id}
                   >
