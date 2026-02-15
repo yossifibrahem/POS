@@ -4,11 +4,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Search, Plus, Minus, X, ShoppingCart } from "lucide-react";
 
@@ -35,6 +36,7 @@ interface Customer {
 
 export default function NewSale() {
   const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -48,17 +50,22 @@ export default function NewSale() {
   const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
-    supabase.from("products").select("*, categories(name)").order("name").then(({ data }) => setProducts(data || []));
-    supabase.from("categories").select("*").order("name").then(({ data }) => setCategories(data || []));
-    supabase.from("customers").select("id, full_name, email").order("full_name").then(({ data }) => {
-      setCustomers(data || []);
+    Promise.all([
+      supabase.from("products").select("*, categories(name)").order("name"),
+      supabase.from("categories").select("*").order("name"),
+      supabase.from("customers").select("id, full_name, email").order("full_name"),
+    ]).then(([productsRes, categoriesRes, customersRes]) => {
+      setProducts(productsRes.data || []);
+      setCategories(categoriesRes.data || []);
+      setCustomers(customersRes.data || []);
       // Auto-select the customer if the logged-in user is an admin (their ID matches a customer ID)
       if (user) {
-        const matchingCustomer = data?.find((c) => c.id === user.id);
+        const matchingCustomer = customersRes.data?.find((c) => c.id === user.id);
         if (matchingCustomer) {
           setCustomerId(user.id);
         }
       }
+      setLoading(false);
     });
   }, [user]);
 
@@ -193,29 +200,50 @@ export default function NewSale() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-h-[70vh] overflow-y-auto">
-          {filteredProducts.map((p) => (
-            <Card
-              key={p.id}
-              className={`transition hover:shadow-md ${p.stock === 0 ? "opacity-50" : ""}`}
-            >
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold">${Number(p.price).toFixed(2)}</span>
-                    <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
-                      {p.stock} left
-                    </Badge>
+          {loading ? (
+            <>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Card key={i} className="transition hover:shadow-md">
+                  <CardHeader>
+                    <Skeleton className="h-5 w-32" />
+                  </CardHeader>
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-5 w-14" />
+                      </div>
+                      <Skeleton className="h-8 w-14" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          ) : (
+            filteredProducts.map((p) => (
+              <Card
+                key={p.id}
+                className={`transition hover:shadow-md ${p.stock === 0 ? "opacity-50" : ""}`}
+              >
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold">${Number(p.price).toFixed(2)}</span>
+                      <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
+                        {p.stock} left
+                      </Badge>
+                    </div>
+                    <Button size="sm" onClick={(e) => { e.stopPropagation(); if (p.stock > 0) addToCart(p); }} disabled={p.stock === 0}>
+                      Add
+                    </Button>
                   </div>
-                  <Button size="sm" onClick={(e) => { e.stopPropagation(); if (p.stock > 0) addToCart(p); }} disabled={p.stock === 0}>
-                    Add
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
 
@@ -299,3 +327,4 @@ export default function NewSale() {
     </div>
   );
 }
+

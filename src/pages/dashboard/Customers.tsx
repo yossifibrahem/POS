@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Shield, ShieldOff, Search } from "lucide-react";
 
@@ -21,6 +22,7 @@ interface Customer {
 }
 
 export default function Customers() {
+  const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -30,6 +32,7 @@ export default function Customers() {
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
+    setLoading(true);
     const { data: custs } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
     const { data: admins } = await supabase.from("admins").select("id");
     const { data: carts } = await supabase.from("carts").select("customer_id");
@@ -37,6 +40,7 @@ export default function Customers() {
     const cartCounts: Record<string, number> = {};
     (carts || []).forEach((c) => { cartCounts[c.customer_id] = (cartCounts[c.customer_id] || 0) + 1; });
     setCustomers((custs || []).map((c) => ({ ...c, is_admin: adminIds.has(c.id), cart_count: cartCounts[c.id] || 0 })));
+    setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
@@ -71,36 +75,58 @@ export default function Customers() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((c) => (
-          <Card key={c.id}>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">{c.full_name}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="text-sm text-muted-foreground">{c.email}</div>
-              <div className="flex items-center justify-between text-sm">
-                <div>{c.phone || "—"}</div>
-                <div>{c.is_admin ? <Badge>Admin</Badge> : <Badge variant="secondary">Customer</Badge>}</div>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <div className="text-muted-foreground">Orders: {c.cart_count}</div>
-                <div className="text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</div>
-              </div>
-              <div className="flex justify-end">
-                {c.is_admin ? (
-                  <Button variant="ghost" size="icon" title="Demote" onClick={() => setDemoteTarget(c)}>
-                    <ShieldOff className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button variant="ghost" size="icon" title="Promote to Admin" onClick={() => setPromoteTarget(c)}>
-                    <Shield className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-        {filtered.length === 0 && (
+        {loading ? (
+          <>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-5 w-32" />
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <div className="flex items-center justify-between text-sm">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-5 w-14" />
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        ) : filtered.length > 0 ? (
+          filtered.map((c) => (
+            <Card key={c.id}>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">{c.full_name}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-sm text-muted-foreground">{c.email}</div>
+                <div className="flex items-center justify-between text-sm">
+                  <div>{c.phone || "—"}</div>
+                  <div>{c.is_admin ? <Badge>Admin</Badge> : <Badge variant="secondary">Customer</Badge>}</div>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <div className="text-muted-foreground">Orders: {c.cart_count}</div>
+                  <div className="text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</div>
+                </div>
+                <div className="flex justify-end">
+                  {c.is_admin ? (
+                    <Button variant="ghost" size="icon" title="Demote" onClick={() => setDemoteTarget(c)}>
+                      <ShieldOff className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" size="icon" title="Promote to Admin" onClick={() => setPromoteTarget(c)}>
+                      <Shield className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
           <div className="col-span-full text-center text-muted-foreground py-8">No customers found</div>
         )}
       </div>

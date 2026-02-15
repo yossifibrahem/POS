@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
@@ -17,6 +18,7 @@ interface Category {
 }
 
 export default function Categories() {
+  const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -25,13 +27,15 @@ export default function Categories() {
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
+    setLoading(true);
     const { data: cats } = await supabase.from("categories").select("*").order("name");
-    if (!cats) return;
+    if (!cats) { setLoading(false); return; }
     // Get product counts
     const { data: products } = await supabase.from("products").select("category_id");
     const counts: Record<string, number> = {};
     (products || []).forEach((p) => { if (p.category_id) counts[p.category_id] = (counts[p.category_id] || 0) + 1; });
     setCategories(cats.map((c) => ({ ...c, product_count: counts[c.id] || 0 })));
+    setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
@@ -70,22 +74,37 @@ export default function Categories() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {categories.map((c) => (
-          <Card key={c.id}>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">{c.name}</CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center justify-between gap-2">
-              <div className="text-sm text-muted-foreground">{c.product_count} product{c.product_count === 1 ? "" : "s"}</div>
-              <div className="text-sm">{new Date(c.created_at).toLocaleDateString()}</div>
-              <div className="flex gap-1">
-                <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => setDeleteId(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-        {categories.length === 0 && (
+        {loading ? (
+          <>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-5 w-24" />
+                </CardHeader>
+                <CardContent className="flex items-center justify-between gap-2">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-12" />
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        ) : categories.length > 0 ? (
+          categories.map((c) => (
+            <Card key={c.id}>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">{c.name}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between gap-2">
+                <div className="text-sm text-muted-foreground">{c.product_count} product{c.product_count === 1 ? "" : "s"}</div>
+                <div className="text-sm">{new Date(c.created_at).toLocaleDateString()}</div>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteId(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
           <div className="col-span-full text-center text-muted-foreground py-8">No categories yet</div>
         )}
       </div>

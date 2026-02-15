@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 
@@ -28,6 +29,7 @@ interface Category {
 }
 
 export default function Products() {
+  const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
@@ -39,10 +41,12 @@ export default function Products() {
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
+    setLoading(true);
     const { data } = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
     setProducts(data || []);
     const { data: cats } = await supabase.from("categories").select("*").order("name");
     setCategories(cats || []);
+    setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
@@ -126,29 +130,51 @@ export default function Products() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((p) => (
-          <Card key={p.id}>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="text-sm text-muted-foreground">{p.categories?.name || "—"}</div>
-              <div className="flex items-center justify-between text-sm">
-                <div>${Number(p.price).toFixed(2)}</div>
-                <div className="text-muted-foreground">Cost: ${Number(p.cost).toFixed(2)}</div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="text-sm">Stock: {p.stock}</div>
-                <div>{stockBadge(p.stock)}</div>
-              </div>
-              <div className="flex justify-end gap-1">
-                <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-        {filtered.length === 0 && (
+        {loading ? (
+          <>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-5 w-32" />
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Skeleton className="h-4 w-20" />
+                  <div className="flex items-center justify-between text-sm">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-4 w-12" />
+                    <Skeleton className="h-5 w-16" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        ) : filtered.length > 0 ? (
+          filtered.map((p) => (
+            <Card key={p.id}>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-sm text-muted-foreground">{p.categories?.name || "—"}</div>
+                <div className="flex items-center justify-between text-sm">
+                  <div>${Number(p.price).toFixed(2)}</div>
+                  <div className="text-muted-foreground">Cost: ${Number(p.cost).toFixed(2)}</div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">Stock: {p.stock}</div>
+                  <div>{stockBadge(p.stock)}</div>
+                </div>
+                <div className="flex justify-end gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
           <div className="col-span-full text-center text-muted-foreground py-8">No products found</div>
         )}
       </div>
