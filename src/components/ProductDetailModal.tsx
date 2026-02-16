@@ -1,11 +1,9 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/formatters";
-import { Package, Tag, DollarSign, Coins, Box, Calendar, ShoppingCart, Pencil, Check, X } from "lucide-react";
+import { Package, Tag, DollarSign, Coins, Box, Calendar, ShoppingCart, Pencil } from "lucide-react";
 
 interface Product {
   id: string;
@@ -15,21 +13,7 @@ interface Product {
   stock: number;
   category_id: string | null;
   created_at: string;
-  attributes: Record<string, string | number | boolean>;
   categories?: { name: string } | null;
-}
-
-type AttributeType = 'text' | 'number' | 'boolean' | 'enum';
-
-interface CategoryAttribute {
-  id: string;
-  name: string;
-  label: string;
-  attribute_type: AttributeType;
-  unit?: string;
-  options?: string[];
-  is_required: boolean;
-  display_order: number;
 }
 
 interface ProductDetailModalProps {
@@ -49,34 +33,6 @@ export function ProductDetailModal({
   onEdit,
   onAddToCart,
 }: ProductDetailModalProps) {
-  const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>([]);
-  const [loadingAttrs, setLoadingAttrs] = useState(false);
-
-  const mapAttributes = (data: unknown[] | null): CategoryAttribute[] => {
-    if (!data) return [];
-    return data.map((attr: unknown) => ({
-      ...(attr as CategoryAttribute),
-      attribute_type: (attr as CategoryAttribute).attribute_type as AttributeType,
-    }));
-  };
-
-  useEffect(() => {
-    if (product?.category_id) {
-      setLoadingAttrs(true);
-      supabase
-        .from("category_attributes")
-        .select("*")
-        .eq("category_id", product.category_id)
-        .order("display_order")
-        .then(({ data }) => {
-          setCategoryAttributes(mapAttributes(data));
-          setLoadingAttrs(false);
-        });
-    } else {
-      setCategoryAttributes([]);
-    }
-  }, [product?.category_id]);
-
   if (!product) return null;
 
   const stockBadge = () => {
@@ -96,34 +52,9 @@ export function ProductDetailModal({
   const profit = product.price - product.cost;
   const profitMargin = product.price > 0 ? ((profit / product.price) * 100).toFixed(1) : "0";
 
-  const formatAttributeValue = (attr: CategoryAttribute, value: unknown): string => {
-    if (value === undefined || value === null || value === "") return "—";
-    
-    if (attr.attribute_type === "boolean") {
-      return value ? "Yes" : "No";
-    }
-    
-    if (attr.attribute_type === "number" && attr.unit) {
-      return `${value} ${attr.unit}`;
-    }
-    
-    return String(value);
-  };
-
-  const getAttributeIcon = (attr: CategoryAttribute, value: unknown) => {
-    if (attr.attribute_type === "boolean") {
-      return value ? (
-        <Check className="h-4 w-4 text-green-600" />
-      ) : (
-        <X className="h-4 w-4 text-red-600" />
-      );
-    }
-    return null;
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Package className="h-5 w-5 text-primary" />
@@ -198,36 +129,6 @@ export function ProductDetailModal({
               </div>
             </div>
           </div>
-
-          <Separator />
-
-          {/* Attributes Section */}
-          {categoryAttributes.length > 0 && (
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium text-muted-foreground">Product Specifications</h4>
-              <div className="grid grid-cols-2 gap-4">
-                {categoryAttributes.map((attr) => {
-                  const value = product.attributes?.[attr.name];
-                  const icon = getAttributeIcon(attr, value);
-                  
-                  return (
-                    <div key={attr.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">{attr.label}</span>
-                        {attr.is_required && <span className="text-destructive text-xs">*</span>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {icon}
-                        <span className="text-sm font-medium">
-                          {formatAttributeValue(attr, value)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           <Separator />
 
