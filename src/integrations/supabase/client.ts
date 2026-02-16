@@ -5,12 +5,35 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// Custom storage that switches between localStorage and sessionStorage
+// based on user's "Remember Me" preference
+const rememberMeStorage = {
+  getItem: (key: string): string | null => {
+    const rememberMe = localStorage.getItem("rememberMe");
+    const useLocalStorage = rememberMe === null ? true : JSON.parse(rememberMe);
+    const storage = useLocalStorage ? localStorage : sessionStorage;
+    return storage.getItem(key);
+  },
+  setItem: (key: string, value: string): void => {
+    const rememberMe = localStorage.getItem("rememberMe");
+    const useLocalStorage = rememberMe === null ? true : JSON.parse(rememberMe);
+    const storage = useLocalStorage ? localStorage : sessionStorage;
+    storage.setItem(key, value);
+  },
+  removeItem: (key: string): void => {
+    const rememberMe = localStorage.getItem("rememberMe");
+    const useLocalStorage = rememberMe === null ? true : JSON.parse(rememberMe);
+    const storage = useLocalStorage ? localStorage : sessionStorage;
+    storage.removeItem(key);
+  },
+};
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: localStorage,
+    storage: rememberMeStorage,
     persistSession: true,
     autoRefreshToken: true,
   }

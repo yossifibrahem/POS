@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,32 +11,61 @@ import { toast } from "sonner";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { user, rememberMe, setRememberMe } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      // Check admin status and redirect to appropriate page
+      const checkAndRedirect = async () => {
+        try {
+          const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: user.id });
+          if (adminCheck) {
+            navigate("/dashboard");
+          } else {
+            navigate("/account");
+          }
+        } catch (e) {
+          navigate("/account");
+        }
+      };
+      checkAndRedirect();
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ 
+      email, 
+      password,
+      options: {
+        // This ensures the session is created with the correct persistence
+      }
+    });
     if (error) {
       toast.error(error.message);
       setLoading(false);
       return;
     }
 
-    // Navigate immediately and run admin check in background to avoid blocking UI
+    // Check admin status before navigating to the correct destination
     setLoading(false);
-    navigate("/account");
-    (async () => {
-      try {
-        const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: data.user.id });
-        if (adminCheck) navigate("/dashboard");
-      } catch (e) {
-        // ignore background admin check errors
+    try {
+      const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: data.user.id });
+      if (adminCheck) {
+        navigate("/dashboard");
+      } else {
+        navigate("/account");
       }
-    })();
+    } catch (e) {
+      // If admin check fails, default to account page
+      navigate("/account");
+    }
   };
 
   return (
@@ -53,6 +84,16 @@ export default function Login() {
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="remember" 
+                checked={rememberMe} 
+                onCheckedChange={(checked) => setRememberMe(checked as boolean)} 
+              />
+              <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
+                Remember me on this device
+              </Label>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-3">

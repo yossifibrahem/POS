@@ -7,6 +7,8 @@ interface AuthContextType {
   isAdmin: boolean;
   loading: boolean;
   adminLoading: boolean;
+  rememberMe: boolean;
+  setRememberMe: (value: boolean) => void;
   signOut: () => Promise<void>;
 }
 
@@ -15,6 +17,8 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   loading: true,
   adminLoading: true,
+  rememberMe: true,
+  setRememberMe: () => {},
   signOut: async () => {},
 });
 
@@ -23,6 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(true);
+  const [rememberMe, setRememberMeState] = useState(() => {
+    const saved = localStorage.getItem("rememberMe");
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+
+  const setRememberMe = (value: boolean) => {
+    localStorage.setItem("rememberMe", JSON.stringify(value));
+    setRememberMeState(value);
+  };
 
   const checkAdmin = async (userId: string) => {
     const { data } = await supabase.rpc("is_admin", { _user_id: userId });
@@ -67,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, adminLoading, signOut }}>
+    <AuthContext.Provider value={{ user, isAdmin, loading, adminLoading, rememberMe, setRememberMe, signOut }}>
       {children}
     </AuthContext.Provider>
   );
