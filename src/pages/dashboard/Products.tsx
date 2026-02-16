@@ -14,6 +14,7 @@ import { withLoading, handleError, handleSuccess, validateRequired, validateNonN
 import { formatCurrency } from "@/lib/formatters";
 import { filterProducts } from "@/lib/filters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
+import { ProductDetailModal } from "@/components/ProductDetailModal";
 
 interface Product {
   id: string;
@@ -42,6 +43,8 @@ export default function Products() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState({ name: "", price: "", cost: "", stock: "", category_id: "" });
   const [saving, setSaving] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   const load = async () => {
     await withLoading(setLoading, async () => {
@@ -64,6 +67,11 @@ export default function Products() {
     setEditing(p);
     setForm({ name: p.name, price: String(p.price), cost: String(p.cost), stock: String(p.stock), category_id: p.category_id || "" });
     setDialogOpen(true);
+  };
+
+  const openDetail = (p: Product) => {
+    setDetailProduct(p);
+    setDetailModalOpen(true);
   };
 
   const handleSave = async () => {
@@ -136,7 +144,11 @@ export default function Products() {
           <LoadingGrid count={6} columns={3} />
         ) : filtered.length > 0 ? (
           filtered.map((p) => (
-            <Card key={p.id}>
+            <Card 
+              key={p.id} 
+              className="cursor-pointer transition hover:shadow-md"
+              onClick={() => openDetail(p)}
+            >
               <CardHeader>
                 <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
               </CardHeader>
@@ -150,7 +162,7 @@ export default function Products() {
                   <div className="text-sm">Stock: {p.stock}</div>
                   <div>{stockBadge(p.stock)}</div>
                 </div>
-                <div className="flex justify-end gap-1">
+                <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                   <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
@@ -200,6 +212,14 @@ export default function Products() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ProductDetailModal
+        product={detailProduct}
+        open={detailModalOpen}
+        onOpenChange={setDetailModalOpen}
+        context="products"
+        onEdit={openEdit}
+      />
     </div>
   );
 }

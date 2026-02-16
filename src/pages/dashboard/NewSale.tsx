@@ -14,13 +14,16 @@ import { Search, Plus, Minus, X, ShoppingCart } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { filterProducts, filterCustomers } from "@/lib/filters";
 import { LoadingGrid } from "@/components/LoadingGrid";
+import { ProductDetailModal } from "@/components/ProductDetailModal";
 
 interface Product {
   id: string;
   name: string;
   price: number;
+  cost: number;
   stock: number;
   category_id: string | null;
+  created_at: string;
   categories?: { name: string } | null;
 }
 
@@ -50,6 +53,8 @@ export default function NewSale() {
   const [notes, setNotes] = useState("");
   const [processing, setProcessing] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -155,6 +160,11 @@ export default function NewSale() {
 
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0);
 
+  const openDetail = (p: Product) => {
+    setDetailProduct(p);
+    setDetailModalOpen(true);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -198,7 +208,8 @@ export default function NewSale() {
             filteredProducts.map((p) => (
               <Card
                 key={p.id}
-                className={`transition hover:shadow-md ${p.stock === 0 ? "opacity-50" : ""}`}
+                className={`cursor-pointer transition hover:shadow-md ${p.stock === 0 ? "opacity-50" : ""}`}
+                onClick={() => openDetail(p)}
               >
                 <CardHeader>
                   <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
@@ -299,6 +310,14 @@ export default function NewSale() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <ProductDetailModal
+        product={detailProduct}
+        open={detailModalOpen}
+        onOpenChange={setDetailModalOpen}
+        context="newsale"
+        onAddToCart={addToCart}
+      />
     </div>
   );
 }
