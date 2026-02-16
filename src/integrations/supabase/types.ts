@@ -97,6 +97,56 @@ export type Database = {
         }
         Relationships: []
       }
+      category_attributes: {
+        Row: {
+          attribute_type: string
+          category_id: string
+          created_at: string
+          display_order: number
+          id: string
+          is_required: boolean
+          label: string
+          name: string
+          options: Json | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          attribute_type: string
+          category_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_required?: boolean
+          label: string
+          name: string
+          options?: Json | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attribute_type?: string
+          category_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_required?: boolean
+          label?: string
+          name?: string
+          options?: Json | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_attributes_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string
@@ -123,6 +173,7 @@ export type Database = {
       }
       products: {
         Row: {
+          attributes: Json
           category_id: string | null
           cost: number
           created_at: string
@@ -132,6 +183,7 @@ export type Database = {
           stock: number
         }
         Insert: {
+          attributes?: Json
           category_id?: string | null
           cost?: number
           created_at?: string
@@ -141,6 +193,7 @@ export type Database = {
           stock?: number
         }
         Update: {
+          attributes?: Json
           category_id?: string | null
           cost?: number
           created_at?: string

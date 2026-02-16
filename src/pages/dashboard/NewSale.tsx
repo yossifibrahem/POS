@@ -24,7 +24,22 @@ interface Product {
   stock: number;
   category_id: string | null;
   created_at: string;
+  attributes: Record<string, string | number | boolean>;
   categories?: { name: string } | null;
+}
+
+type AttributeType = 'text' | 'number' | 'boolean' | 'enum';
+
+interface CategoryAttribute {
+  id: string;
+  category_id: string;
+  name: string;
+  label: string;
+  attribute_type: AttributeType;
+  unit?: string;
+  options?: string[];
+  is_required: boolean;
+  display_order: number;
 }
 
 interface CartItem {
@@ -55,6 +70,23 @@ export default function NewSale() {
   const [cartOpen, setCartOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [categoryAttributes, setCategoryAttributes] = useState<Record<string, CategoryAttribute[]>>({});
+
+  const mapAttributes = (data: unknown[] | null): CategoryAttribute[] => {
+    if (!data) return [];
+    return data.map((attr: unknown) => ({
+      ...(attr as CategoryAttribute),
+      attribute_type: (attr as CategoryAttribute).attribute_type as AttributeType,
+    }));
+  };
+
+  const mapProducts = (data: unknown[] | null): Product[] => {
+    if (!data) return [];
+    return data.map((p: unknown) => ({
+      ...(p as Product),
+      attributes: ((p as Product).attributes as Record<string, string | number | boolean>) || {},
+    }));
+  };
 
   useEffect(() => {
     Promise.all([
@@ -62,7 +94,7 @@ export default function NewSale() {
       supabase.from("categories").select("*").order("name"),
       supabase.from("customers").select("id, full_name, email").order("full_name"),
     ]).then(([productsRes, categoriesRes, customersRes]) => {
-      setProducts(productsRes.data || []);
+      setProducts(mapProducts(productsRes.data));
       setCategories(categoriesRes.data || []);
       setCustomers(customersRes.data || []);
       // Auto-select the customer if the logged-in user is an admin (their ID matches a customer ID)
@@ -75,6 +107,49 @@ export default function NewSale() {
       setLoading(false);
     });
   }, [user]);
+
+  // Fetch category attributes for all categories
+  useEffect(() => {
+    if (categories.length === 0) return;
+    
+    const fetchAttributes = async () => {
+      const { data } = await supabase
+        .from("category_attributes")
+        .select("*")
+        .in("category_id", categories.map(c => c.id))
+        .order("display_order");
+      
+      if (data) {
+        const attrsByCategory: Record<string, CategoryAttribute[]> = {};
+        data.forEach((attr) => {
+          // Safely cast options to string array
+          const options = attr.options;
+          const stringOptions = Array.isArray(options) 
+            ? options.filter((o): o is string => typeof o === "string")
+            : undefined;
+          
+          const mappedAttr: CategoryAttribute = {
+            id: attr.id,
+            category_id: attr.category_id,
+            name: attr.name,
+            label: attr.label,
+            attribute_type: attr.attribute_type as AttributeType,
+            unit: attr.unit || undefined,
+            options: stringOptions,
+            is_required: attr.is_required,
+            display_order: attr.display_order,
+          };
+          if (!attrsByCategory[attr.category_id]) {
+            attrsByCategory[attr.category_id] = [];
+          }
+          attrsByCategory[attr.category_id].push(mappedAttr);
+        });
+        setCategoryAttributes(attrsByCategory);
+      }
+    };
+    
+    fetchAttributes();
+  }, [categories]);
 
   const addToCart = (product: Product) => {
     setCart((prev) => {
@@ -152,7 +227,7 @@ export default function NewSale() {
 
     // Reload products for updated stock
     const { data } = await supabase.from("products").select("*, categories(name)").order("name");
-    setProducts(data || []);
+    setProducts(mapProducts(data));
   };
 
   const filteredProducts = filterProducts(products, search, filterCat);
@@ -163,6 +238,46 @@ export default function NewSale() {
   const openDetail = (p: Product) => {
     setDetailProduct(p);
     setDetailModalOpen(true);
+  };
+
+  const formatAttributeValue = (attr: CategoryAttribute, value: unknown): string => {
+    if (value === undefined || value === null || value === "") return "";
+    
+    if (attr.attribute_type === "boolean") {
+      return value ? attr.label : "";
+    }
+    
+    if (attr.attribute_type === "number" && attr.unit) {
+      return `${value}${attr.unit}`;
+    }
+    
+    return String(value);
+  };
+
+  const getProductAttributeBadges = (product: Product) => {
+    const attrs = categoryAttributes[product.category_id || ""];
+    if (!attrs || attrs.length === 0) return null;
+    
+    // Get first 3 key attributes to display
+    const keyAttrs = attrs.slice(0, 3);
+    
+    return (
+      <div className="flex flex-wrap gap-1 mt-2">
+        {keyAttrs.map((attr) => {
+          const value = product.attributes?.[attr.name];
+          if (!value && value !== false) return null;
+          
+          const displayValue = formatAttributeValue(attr, value);
+          if (!displayValue) return null;
+          
+          return (
+            <Badge key={attr.id} variant="outline" className="text-xs">
+              {attr.label}: {displayValue}
+            </Badge>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -211,11 +326,12 @@ export default function NewSale() {
                 className={`cursor-pointer transition hover:shadow-md ${p.stock === 0 ? "opacity-50" : ""}`}
                 onClick={() => openDetail(p)}
               >
-                <CardHeader>
+                <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
+                  {getProductAttributeBadges(p)}
+                  <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold">{formatCurrency(p.price)}</span>
                       <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
