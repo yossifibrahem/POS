@@ -54,7 +54,7 @@ export function ProductDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Package className="h-5 w-5 text-primary" />
@@ -62,7 +62,7 @@ export function ProductDetailModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* Category */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Tag className="h-4 w-4" />
@@ -82,29 +82,39 @@ export function ProductDetailModal({
           <Separator />
 
           {/* Pricing Information */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <h4 className="text-sm font-medium text-muted-foreground">Pricing</h4>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
+            <div className="grid grid-cols-3 gap-6">
+              <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <DollarSign className="h-4 w-4" />
+                  <DollarSign className="h-5 w-5" />
                   <span>Selling Price</span>
                 </div>
-                <p className="text-2xl font-bold text-primary">{formatCurrency(product.price)}</p>
+                <p className="text-3xl font-bold text-primary">{formatCurrency(product.price)}</p>
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Coins className="h-4 w-4" />
+                  <Coins className="h-5 w-5" />
                   <span>Cost</span>
                 </div>
-                <p className="text-2xl font-bold">{formatCurrency(product.cost)}</p>
+                <p className="text-3xl font-bold">{formatCurrency(product.cost)}</p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Package className="h-5 w-5" />
+                  <span>Profit</span>
+                </div>
+                <p className={`text-3xl font-bold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  {formatCurrency(profit)}
+                </p>
               </div>
             </div>
 
             {/* Profit Info */}
-            <div className="rounded-lg bg-muted p-3">
+            <div className="rounded-lg bg-muted p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Profit per unit:</span>
                 <span className={`font-semibold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
@@ -129,7 +139,7 @@ export function ProductDetailModal({
           </div>
 
           {/* Action Buttons - Context Aware */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-3 pt-4">
             {context === "products" && onEdit && (
               <Button 
                 className="flex-1" 
