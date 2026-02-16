@@ -25,38 +25,32 @@ interface LoadingGridProps {
 
 /**
  * Reusable skeleton loading grid for dashboard pages
+ * Renders skeleton cards as fragments to work inside existing grid containers
  */
 export function LoadingGrid({ count = 6, columns = 3, children }: LoadingGridProps) {
-  const gridCols = {
-    1: "grid-cols-1",
-    2: "grid-cols-1 sm:grid-cols-2",
-    3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-    4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
-    6: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6",
-  };
+  if (children) return <>{children}</>;
 
   return (
-    <div className={`grid gap-4 ${gridCols[columns]}`}>
-      {children ||
-        Array.from({ length: count }, (_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <Skeleton className="h-5 w-32" />
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Skeleton className="h-4 w-20" />
-              <div className="flex items-center justify-between text-sm">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-5 w-16" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-    </div>
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <Card key={i}>
+          <CardHeader>
+            <Skeleton className="h-5 w-32" />
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Skeleton className="h-4 w-20" />
+            <div className="flex items-center justify-between text-sm">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-5 w-16" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </>
   );
 }
 
