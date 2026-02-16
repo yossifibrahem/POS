@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Search, Plus, Minus, X, ShoppingCart } from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
+import { filterProducts, filterCustomers } from "@/lib/filters";
+import { LoadingGrid } from "@/components/LoadingGrid";
 
 interface Product {
   id: string;
@@ -151,15 +153,8 @@ export default function NewSale() {
     setProducts(data || []);
   };
 
-  const filteredProducts = products.filter((p) => {
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterCat !== "all" && p.category_id !== filterCat) return false;
-    return true;
-  });
-
-  const filteredCustomers = customers.filter((c) =>
-    !customerSearch || c.full_name.toLowerCase().includes(customerSearch.toLowerCase()) || c.email.toLowerCase().includes(customerSearch.toLowerCase())
-  );
+  const filteredProducts = filterProducts(products, search, filterCat);
+  const filteredCustomers = filterCustomers(customers, customerSearch);
 
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0);
 
@@ -201,24 +196,7 @@ export default function NewSale() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-h-[70vh] overflow-y-auto">
           {loading ? (
-            <>
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Card key={i} className="transition hover:shadow-md">
-                  <CardHeader>
-                    <Skeleton className="h-5 w-32" />
-                  </CardHeader>
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Skeleton className="h-4 w-16" />
-                        <Skeleton className="h-5 w-14" />
-                      </div>
-                      <Skeleton className="h-8 w-14" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </>
+            <LoadingGrid count={6} columns={3} />
           ) : (
             filteredProducts.map((p) => (
               <Card
@@ -231,7 +209,7 @@ export default function NewSale() {
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold">${Number(p.price).toFixed(2)}</span>
+                      <span className="text-sm font-semibold">{formatCurrency(p.price)}</span>
                       <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
                         {p.stock} left
                       </Badge>
@@ -294,7 +272,7 @@ export default function NewSale() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-semibold">${(item.quantity * item.unit_price).toFixed(2)}</p>
+                        <p className="text-sm font-semibold">{formatCurrency(item.quantity * item.unit_price)}</p>
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(item.product.id)}>
                           <X className="h-3 w-3" />
                         </Button>
@@ -316,7 +294,7 @@ export default function NewSale() {
           <div className="border-t px-6 py-4 bg-background">
             <div className="flex items-center justify-between text-lg font-bold">
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>{formatCurrency(total)}</span>
             </div>
             <Button className="w-full mt-3" size="lg" disabled={processing || cart.length === 0} onClick={processSale}>
               {processing ? "Processing..." : "Process Sale"}
@@ -327,4 +305,3 @@ export default function NewSale() {
     </div>
   );
 }
-

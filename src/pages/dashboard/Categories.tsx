@@ -6,9 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { withLoading, handleError, handleSuccess, validateRequired } from "@/lib/api";
+import { formatDate } from "@/lib/formatters";
+import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 
 interface Category {
   id: string;
@@ -27,15 +29,15 @@ export default function Categories() {
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    setLoading(true);
-    const { data: cats } = await supabase.from("categories").select("*").order("name");
-    if (!cats) { setLoading(false); return; }
-    // Get product counts
-    const { data: products } = await supabase.from("products").select("category_id");
-    const counts: Record<string, number> = {};
-    (products || []).forEach((p) => { if (p.category_id) counts[p.category_id] = (counts[p.category_id] || 0) + 1; });
-    setCategories(cats.map((c) => ({ ...c, product_count: counts[c.id] || 0 })));
-    setLoading(false);
+    await withLoading(setLoading, async () => {
+      const { data: cats } = await supabase.from("categories").select("*").order("name");
+      if (!cats) return;
+      // Get product counts
+      const { data: products } = await supabase.from("products").select("category_id");
+      const counts: Record<string, number> = {};
+      (products || []).forEach((p) => { if (p.category_id) counts[p.category_id] = (counts[p.category_id] || 0) + 1; });
+      setCategories(cats.map((c) => ({ ...c, product_count: counts[c.id] || 0 })));
+    });
   };
 
   useEffect(() => { load(); }, []);
@@ -44,14 +46,14 @@ export default function Categories() {
   const openEdit = (c: Category) => { setEditing(c); setName(c.name); setDialogOpen(true); };
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error("Name is required"); return; }
+    if (!validateRequired(name, "Name")) return;
     setSaving(true);
     if (editing) {
       const { error } = await supabase.from("categories").update({ name: name.trim() }).eq("id", editing.id);
-      if (error) toast.error(error.message); else { toast.success("Category updated"); setDialogOpen(false); load(); }
+      if (error) handleError(error); else { handleSuccess("Category updated"); setDialogOpen(false); load(); }
     } else {
       const { error } = await supabase.from("categories").insert({ name: name.trim() });
-      if (error) toast.error(error.message); else { toast.success("Category created"); setDialogOpen(false); load(); }
+      if (error) handleError(error); else { handleSuccess("Category created"); setDialogOpen(false); load(); }
     }
     setSaving(false);
   };
@@ -60,9 +62,8 @@ export default function Categories() {
     if (!deleteId) return;
     const { error } = await supabase.from("categories").delete().eq("id", deleteId);
     if (error) {
-      if (error.message.includes("violates foreign key")) toast.error("Cannot delete: category has products");
-      else toast.error(error.message);
-    } else { toast.success("Category deleted"); load(); }
+      handleError(error, "Cannot delete: category has products");
+    } else { handleSuccess("Category deleted"); load(); }
     setDeleteId(null);
   };
 
@@ -75,19 +76,7 @@ export default function Categories() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? (
-          <>
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-5 w-24" />
-                </CardHeader>
-                <CardContent className="flex items-center justify-between gap-2">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-4 w-12" />
-                </CardContent>
-              </Card>
-            ))}
-          </>
+          <LoadingGrid count={6} columns={3} />
         ) : categories.length > 0 ? (
           categories.map((c) => (
             <Card key={c.id}>
@@ -96,7 +85,7 @@ export default function Categories() {
               </CardHeader>
               <CardContent className="flex items-center justify-between gap-2">
                 <div className="text-sm text-muted-foreground">{c.product_count} product{c.product_count === 1 ? "" : "s"}</div>
-                <div className="text-sm">{new Date(c.created_at).toLocaleDateString()}</div>
+                <div className="text-sm">{formatDate(c.created_at)}</div>
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => setDeleteId(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -105,7 +94,7 @@ export default function Categories() {
             </Card>
           ))
         ) : (
-          <div className="col-span-full text-center text-muted-foreground py-8">No categories yet</div>
+          <EmptyState message="No categories yet" />
         )}
       </div>
 

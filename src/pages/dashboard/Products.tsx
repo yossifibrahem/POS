@@ -8,9 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { withLoading, handleError, handleSuccess, validateRequired, validateNonNegative } from "@/lib/api";
+import { formatCurrency } from "@/lib/formatters";
+import { filterProducts } from "@/lib/filters";
+import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 
 interface Product {
   id: string;
@@ -41,12 +44,12 @@ export default function Products() {
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    setLoading(true);
-    const { data } = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
-    setProducts(data || []);
-    const { data: cats } = await supabase.from("categories").select("*").order("name");
-    setCategories(cats || []);
-    setLoading(false);
+    await withLoading(setLoading, async () => {
+      const { data } = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
+      setProducts(data || []);
+      const { data: cats } = await supabase.from("categories").select("*").order("name");
+      setCategories(cats || []);
+    });
   };
 
   useEffect(() => { load(); }, []);
@@ -64,8 +67,12 @@ export default function Products() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error("Name is required"); return; }
-    if (Number(form.price) < 0 || Number(form.cost) < 0 || Number(form.stock) < 0) { toast.error("Values must be ≥ 0"); return; }
+    if (!validateRequired(form.name, "Name")) return;
+    if (!validateNonNegative(
+      [Number(form.price), Number(form.cost), Number(form.stock)],
+      ["Price", "Cost", "Stock"]
+    )) return;
+    
     setSaving(true);
 
     const payload = {
@@ -78,10 +85,10 @@ export default function Products() {
 
     if (editing) {
       const { error } = await supabase.from("products").update(payload).eq("id", editing.id);
-      if (error) toast.error(error.message); else { toast.success("Product updated"); setDialogOpen(false); load(); }
+      if (error) handleError(error); else { handleSuccess("Product updated"); setDialogOpen(false); load(); }
     } else {
       const { error } = await supabase.from("products").insert(payload);
-      if (error) toast.error(error.message); else { toast.success("Product created"); setDialogOpen(false); load(); }
+      if (error) handleError(error); else { handleSuccess("Product created"); setDialogOpen(false); load(); }
     }
     setSaving(false);
   };
@@ -90,9 +97,8 @@ export default function Products() {
     if (!deleteId) return;
     const { error } = await supabase.from("products").delete().eq("id", deleteId);
     if (error) {
-      if (error.message.includes("violates foreign key")) toast.error("Cannot delete: product has sales records");
-      else toast.error(error.message);
-    } else { toast.success("Product deleted"); load(); }
+      handleError(error, "Cannot delete: product has sales records");
+    } else { handleSuccess("Product deleted"); load(); }
     setDeleteId(null);
   };
 
@@ -102,11 +108,7 @@ export default function Products() {
     return <Badge variant="outline">In Stock</Badge>;
   };
 
-  const filtered = products.filter((p) => {
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterCat !== "all" && p.category_id !== filterCat) return false;
-    return true;
-  });
+  const filtered = filterProducts(products, search, filterCat);
 
   return (
     <div className="space-y-4">
@@ -131,26 +133,7 @@ export default function Products() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? (
-          <>
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-5 w-32" />
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <Skeleton className="h-4 w-20" />
-                  <div className="flex items-center justify-between text-sm">
-                    <Skeleton className="h-4 w-16" />
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Skeleton className="h-4 w-12" />
-                    <Skeleton className="h-5 w-16" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </>
+          <LoadingGrid count={6} columns={3} />
         ) : filtered.length > 0 ? (
           filtered.map((p) => (
             <Card key={p.id}>
@@ -160,8 +143,8 @@ export default function Products() {
               <CardContent className="space-y-2">
                 <div className="text-sm text-muted-foreground">{p.categories?.name || "—"}</div>
                 <div className="flex items-center justify-between text-sm">
-                  <div>${Number(p.price).toFixed(2)}</div>
-                  <div className="text-muted-foreground">Cost: ${Number(p.cost).toFixed(2)}</div>
+                  <div>{formatCurrency(p.price)}</div>
+                  <div className="text-muted-foreground">Cost: {formatCurrency(p.cost)}</div>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-sm">Stock: {p.stock}</div>
@@ -175,7 +158,7 @@ export default function Products() {
             </Card>
           ))
         ) : (
-          <div className="col-span-full text-center text-muted-foreground py-8">No products found</div>
+          <EmptyState message="No products found" />
         )}
       </div>
 

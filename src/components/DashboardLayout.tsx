@@ -1,5 +1,5 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { NavLink, Outlet } from "react-router-dom";
+import { useSignOut } from "@/hooks/useSignOut";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -27,13 +27,7 @@ const navItems = [
 ];
 
 export default function DashboardLayout() {
-  const { signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/login");
-  };
+  const handleSignOut = useSignOut();
 
   return (
     <SidebarProvider>

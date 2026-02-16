@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminCheck } from "@/hooks/useAdminCheck";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { toast } from "sonner";
 export default function Login() {
   const navigate = useNavigate();
   const { user, rememberMe, setRememberMe } = useAuth();
+  const checkAdminAndNavigate = useAdminCheck();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,22 +21,9 @@ export default function Login() {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      // Check admin status and redirect to appropriate page
-      const checkAndRedirect = async () => {
-        try {
-          const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: user.id });
-          if (adminCheck) {
-            navigate("/dashboard");
-          } else {
-            navigate("/account");
-          }
-        } catch (e) {
-          navigate("/account");
-        }
-      };
-      checkAndRedirect();
+      checkAdminAndNavigate(user.id);
     }
-  }, [user, navigate]);
+  }, [user, checkAdminAndNavigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,17 +44,7 @@ export default function Login() {
 
     // Check admin status before navigating to the correct destination
     setLoading(false);
-    try {
-      const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: data.user.id });
-      if (adminCheck) {
-        navigate("/dashboard");
-      } else {
-        navigate("/account");
-      }
-    } catch (e) {
-      // If admin check fails, default to account page
-      navigate("/account");
-    }
+    await checkAdminAndNavigate(data.user.id);
   };
 
   return (

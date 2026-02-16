@@ -2,14 +2,28 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Package, Users, ShoppingCart, DollarSign, AlertTriangle } from "lucide-react";
+import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { StatCardSkeleton, LoadingGrid } from "@/components/LoadingGrid";
+
+interface Cart {
+  id: string;
+  total: number;
+  created_at: string;
+  customers?: { full_name?: string };
+}
+
+interface Product {
+  id: string;
+  name: string;
+  stock: number;
+}
 
 export default function Overview() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ products: 0, customers: 0, salesToday: 0, revenueToday: 0 });
-  const [recentCarts, setRecentCarts] = useState<any[]>([]);
-  const [lowStock, setLowStock] = useState<any[]>([]);
+  const [recentCarts, setRecentCarts] = useState<Cart[]>([]);
+  const [lowStock, setLowStock] = useState<Product[]>([]);
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
@@ -49,28 +63,21 @@ export default function Overview() {
         {loading ? (
           <>
             {[1, 2, 3, 4].map((i) => (
-              <Card key={i}>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-4 w-4 rounded-full" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-8 w-16" />
-                </CardContent>
-              </Card>
+              <StatCardSkeleton key={i} />
             ))}
           </>
         ) : (
           statCards.map((s) => (
-            <Card key={s.label}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{s.label}</CardTitle>
-                <s.icon className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{s.value}</p>
-              </CardContent>
-            </Card>
+              <Card key={s.label}>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{s.label}</CardTitle>
+                  <s.icon className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold">{s.value}</p>
+                </CardContent>
+              </Card>
+
           ))
         )}
       </div>
@@ -79,29 +86,20 @@ export default function Overview() {
         <Card>
           <CardHeader><CardTitle className="text-base">Recent Sales</CardTitle></CardHeader>
           <CardContent>
-            {loading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between rounded border p-2">
-                    <div className="space-y-1">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-3 w-16" />
-                    </div>
-                    <Skeleton className="h-5 w-12" />
-                  </div>
-                ))}
-              </div>
-            ) : recentCarts.length === 0 ? (
+          {loading ? (
+            <LoadingGrid count={3} columns={1} />
+          ) : recentCarts.length === 0 ? (
+
               <p className="text-sm text-muted-foreground">No sales yet.</p>
             ) : (
               <div className="space-y-2">
                 {recentCarts.map((cart) => (
                   <div key={cart.id} className="flex items-center justify-between rounded border p-2 text-sm">
                     <div>
-                      <p className="font-medium">{(cart.customers as any)?.full_name || "Unknown"}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(cart.created_at).toLocaleString()}</p>
+                      <p className="font-medium">{cart.customers?.full_name || "Unknown"}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateTime(cart.created_at)}</p>
                     </div>
-                    <p className="font-semibold">${Number(cart.total).toFixed(2)}</p>
+                    <p className="font-semibold">{formatCurrency(Number(cart.total))}</p>
                   </div>
                 ))}
               </div>
@@ -116,16 +114,10 @@ export default function Overview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between rounded border p-2">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-5 w-10" />
-                  </div>
-                ))}
-              </div>
-            ) : lowStock.length === 0 ? (
+          {loading ? (
+            <LoadingGrid count={3} columns={1} />
+          ) : lowStock.length === 0 ? (
+
               <p className="text-sm text-muted-foreground">All products well stocked.</p>
             ) : (
               <div className="space-y-2">
