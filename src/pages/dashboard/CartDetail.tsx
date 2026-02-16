@@ -43,13 +43,7 @@ export default function CartDetail() {
     if (qty < 1 || qty > item.quantity) return;
     setReturningId(item.id);
     try {
-      const currentStock = item.products?.stock ?? 0;
-      const { error: productError } = await supabase
-        .from("products")
-        .update({ stock: currentStock + qty })
-        .eq("id", item.product_id);
-      if (productError) throw productError;
-
+      // Database trigger will handle stock restoration
       if (qty === item.quantity) {
         const { error: deleteError } = await supabase.from("sold_products").delete().eq("id", item.id);
         if (deleteError) throw deleteError;
@@ -61,19 +55,7 @@ export default function CartDetail() {
         if (updateError) throw updateError;
       }
 
-      const remainingItems =
-        qty === item.quantity
-          ? items.filter((i) => i.id !== item.id)
-          : items.map((i) =>
-              i.id === item.id ? { ...i, quantity: i.quantity - qty } : i
-            );
-      const newTotal = remainingItems.reduce(
-        (sum, i) => sum + i.quantity * Number(i.unit_price),
-        0
-      );
-      const { error: cartError } = await supabase.from("carts").update({ total: newTotal }).eq("id", cartId);
-      if (cartError) throw cartError;
-
+      // Database trigger will recalculate cart total
       setReturnQty((prev) => {
         const next = { ...prev };
         delete next[item.id];
@@ -165,4 +147,3 @@ export default function CartDetail() {
     </div>
   );
 }
-

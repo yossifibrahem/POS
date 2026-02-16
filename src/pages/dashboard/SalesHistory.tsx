@@ -54,26 +54,7 @@ export default function SalesHistory() {
     if (!deleteCartId) return;
     setProcessing(true);
     try {
-      // Fetch all sold_products for this cart
-      const { data: soldItems, error: fetchError } = await supabase
-        .from("sold_products")
-        .select("*, products(stock)")
-        .eq("cart_id", deleteCartId);
-      
-      if (fetchError) throw fetchError;
-
-      // Restore stock for each item
-      for (const item of soldItems || []) {
-        const currentStock = item.products?.stock ?? 0;
-        const { error: stockError } = await supabase
-          .from("products")
-          .update({ stock: currentStock + item.quantity })
-          .eq("id", item.product_id);
-        
-        if (stockError) throw stockError;
-      }
-
-      // Delete all sold_products
+      // Delete all sold_products (database triggers will restore stock)
       const { error: deleteSoldError } = await supabase
         .from("sold_products")
         .delete()

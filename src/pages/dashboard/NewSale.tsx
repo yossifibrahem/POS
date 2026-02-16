@@ -115,11 +115,10 @@ export default function NewSale() {
 
     setProcessing(true);
 
-    // Create cart
+    // Create cart (total will be calculated by database trigger)
     const { data: cartData, error: cartError } = await supabase.from("carts").insert({
       customer_id: customerId,
       processed_by: user.id,
-      total,
       notes: notes || null,
     }).select().single();
 
@@ -136,12 +135,10 @@ export default function NewSale() {
     const { error: soldError } = await supabase.from("sold_products").insert(soldItems);
     if (soldError) { toast.error(soldError.message); setProcessing(false); return; }
 
-    // Decrement stock
-    for (const item of cart) {
-      await supabase.from("products").update({ stock: item.product.stock - item.quantity }).eq("id", item.product.id);
-    }
+    // Fetch updated cart total from database (calculated by trigger)
+    const { data: updatedCart } = await supabase.from("carts").select("total").eq("id", cartData.id).single();
 
-    toast.success(`Sale processed! Total: $${total.toFixed(2)}`);
+    toast.success(`Sale processed! Total: $${Number(updatedCart?.total || 0).toFixed(2)}`);
     setCart([]);
     setCustomerId("");
     setNotes("");
