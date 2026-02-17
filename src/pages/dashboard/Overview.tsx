@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Package, Users, ShoppingCart, DollarSign, AlertTriangle, TrendingUp, Clock, ArrowUpRight, Tags } from "lucide-react";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { StatCardSkeleton, LoadingGrid } from "@/components/LoadingGrid";
+import { CartDetailModal } from "@/components/CartDetailModal";
 
 /**
  * Format a date to relative time (e.g., "2 hours ago", "Just now")
@@ -28,7 +29,10 @@ interface Cart {
   id: string;
   total: number;
   created_at: string;
+  status?: string;
   customers?: { full_name?: string };
+  admins?: { customers?: { full_name?: string } };
+  sold_products?: { quantity: number; refunded_quantity: number; status?: string; products?: { name?: string } }[];
 }
 
 interface Product {
@@ -43,6 +47,8 @@ export default function Overview() {
   const [stats, setStats] = useState({ products: 0, categories: 0, customers: 0, salesToday: 0, revenueToday: 0, profitToday: 0 });
   const [recentCarts, setRecentCarts] = useState<Cart[]>([]);
   const [lowStock, setLowStock] = useState<Product[]>([]);
+  const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
@@ -52,7 +58,7 @@ export default function Overview() {
       supabase.from("categories").select("id", { count: "exact", head: true }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
       supabase.from("carts").select("total").gte("created_at", today).eq("status", "completed"),
-      supabase.from("carts").select("*, customers(full_name)").order("created_at", { ascending: false }).limit(10),
+      supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
       supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
       supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", today),
     ]).then(([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
@@ -165,27 +171,60 @@ export default function Overview() {
               </div>
             ) : (
               <div className="space-y-2">
-                {recentCarts.slice(0, 8).map((cart, index) => (
+                {recentCarts.slice(0, 8).map((cart) => (
                   <div 
                     key={cart.id} 
-                    className="group flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                    className="group p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => { setSelectedCartId(cart.id); setModalOpen(true); }}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">
-                        {(cart.customers?.full_name || "W").charAt(0).toUpperCase()}
-                      </div>
+                    <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium leading-none">
-                          {cart.customers?.full_name || "Walk-in Customer"}
+                          {formatRelativeTime(cart.created_at)} • {cart.sold_products?.length || 0} items
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {formatRelativeTime(cart.created_at)}
+                          Processed by: {cart.admins?.customers?.full_name || "Unknown"}
                         </p>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">{formatCurrency(Number(cart.total))}</span>
+                        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">{formatCurrency(Number(cart.total))}</span>
-                      <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="mt-2 pt-2 border-t border-dashed">
+                      <p className="text-xs font-medium text-foreground mb-1">Items:</p>
+                      {cart.sold_products && cart.sold_products.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {cart.sold_products.slice(0, 4).map((sp, idx) => {
+                            const isFullyRefunded = sp.status === 'refunded';
+                            const refundedQty = sp.refunded_quantity || 0;
+                            const isPartiallyRefunded = refundedQty > 0 && sp.status === 'active';
+                            const activeQty = sp.quantity - refundedQty;
+                            
+                            return (
+                              <span 
+                                key={idx} 
+                                className={`text-sm px-3 py-1 rounded-md ${
+                                  isFullyRefunded 
+                                    ? 'bg-red-100 text-red-600 line-through' 
+                                    : isPartiallyRefunded
+                                      ? 'bg-yellow-100 text-yellow-700'
+                                      : 'bg-muted text-muted-foreground'
+                                }`}
+                              >
+                                {sp.products?.name || "Unknown"} ({isPartiallyRefunded ? `${activeQty}/${sp.quantity}` : sp.quantity})
+                                {isFullyRefunded && ' - Refunded'}
+                                {isPartiallyRefunded && ' - Partial'}
+                              </span>
+                            );
+                          })}
+                          {cart.sold_products.length > 4 && (
+                            <span className="text-sm text-muted-foreground px-2 py-1">
+                              +{cart.sold_products.length - 4} more
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -250,6 +289,48 @@ export default function Overview() {
           </CardContent>
         </Card>
       </div>
+
+      <CartDetailModal
+        cartId={selectedCartId}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        onRefund={() => {
+          // Refresh the data after refund
+          const today = new Date().toISOString().split("T")[0];
+          Promise.all([
+            supabase.from("products").select("id", { count: "exact", head: true }),
+            supabase.from("categories").select("id", { count: "exact", head: true }),
+            supabase.from("customers").select("id", { count: "exact", head: true }),
+            supabase.from("carts").select("total").gte("created_at", today).eq("status", "completed"),
+            supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
+            supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
+            supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", today),
+          ]).then(([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
+            const todayCarts = todayCartsRes.data || [];
+            const soldProducts = soldProductsRes.data || [];
+            
+            const profitToday = soldProducts.reduce((total, sp) => {
+              const cost = Number(sp.products?.cost || 0);
+              const unitPrice = Number(sp.unit_price || 0);
+              const quantity = Number(sp.quantity || 0);
+              const refundedQty = Number(sp.refunded_quantity || 0);
+              const activeQty = quantity - refundedQty;
+              return total + ((unitPrice - cost) * activeQty);
+            }, 0);
+            
+            setStats({
+              products: productsRes.count || 0,
+              categories: categoriesRes.count || 0,
+              customers: customersRes.count || 0,
+              salesToday: todayCarts.length,
+              revenueToday: todayCarts.reduce((s, c) => s + Number(c.total), 0),
+              profitToday,
+            });
+            setRecentCarts(recentRes.data || []);
+            setLowStock(lowStockRes.data || []);
+          });
+        }}
+      />
     </div>
   );
 }
