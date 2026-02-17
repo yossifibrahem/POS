@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { User, Mail, Phone, Calendar, ShoppingCart } from "lucide-react";
@@ -37,25 +38,29 @@ export function CustomerDetailModal({ customer, open, onOpenChange }: CustomerDe
   const [loading, setLoading] = useState(false);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const [cartModalOpen, setCartModalOpen] = useState(false);
+  const [showOnlyCompleted, setShowOnlyCompleted] = useState(true);
 
   const loadCarts = useCallback(async () => {
     if (!customer) return;
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from("carts")
       .select("*, sold_products(quantity, products(name))")
       .eq("customer_id", customer.id)
-      .eq("status", "completed")
       .order("created_at", { ascending: false });
+    if (showOnlyCompleted) {
+      query = query.eq("status", "completed");
+    }
+    const { data } = await query;
     setCarts(data || []);
     setLoading(false);
-  }, [customer]);
+  }, [customer, showOnlyCompleted]);
 
   useEffect(() => {
     if (open && customer) {
       loadCarts();
     }
-  }, [open, customer, loadCarts]);
+  }, [open, customer, loadCarts, showOnlyCompleted]);
 
   const handleCartClick = (cartId: string) => {
     setSelectedCartId(cartId);
@@ -111,9 +116,13 @@ export function CustomerDetailModal({ customer, open, onOpenChange }: CustomerDe
                 <div className="flex items-center gap-2">
                   <ShoppingCart className="h-5 w-5" />
                   <h3 className="font-semibold">Purchase History</h3>
-                  <Badge variant="outline" className="ml-auto">
-                    {carts.length} orders
-                  </Badge>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-sm text-muted-foreground">Show only completed</span>
+                    <Switch
+                      checked={showOnlyCompleted}
+                      onCheckedChange={setShowOnlyCompleted}
+                    />
+                  </div>
                 </div>
 
                 {loading ? (

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CartDetailModal } from "@/components/CartDetailModal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +36,7 @@ export default function SalesHistory() {
   const [carts, setCarts] = useState<Cart[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [showOnlyCompleted, setShowOnlyCompleted] = useState(true);
   const [deleteCartId, setDeleteCartId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
@@ -42,13 +44,16 @@ export default function SalesHistory() {
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
-      let query = supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, products(name))").eq("status", "completed").order("created_at", { ascending: false });
+      let query = supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, products(name))").order("created_at", { ascending: false });
+      if (showOnlyCompleted) {
+        query = query.eq("status", "completed");
+      }
       if (dateFrom) query = query.gte("created_at", dateFrom);
       if (dateTo) query = query.lte("created_at", dateTo + "T23:59:59");
       const { data } = await query;
       setCarts(data || []);
     });
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, showOnlyCompleted]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -86,7 +91,7 @@ export default function SalesHistory() {
     <div className="space-y-2">
       <h1 className="sticky top-[48px] z-10 bg-background py-1 text-2xl font-bold">Sales History</h1>
 
-      <div className="sticky top-[96px] z-10 flex gap-4 bg-background py-1">
+      <div className="sticky top-[96px] z-10 flex gap-4 bg-background py-1 items-end">
         <div className="space-y-1">
           <Label className="text-xs">From</Label>
           <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
@@ -94,6 +99,13 @@ export default function SalesHistory() {
         <div className="space-y-1">
           <Label className="text-xs">To</Label>
           <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </div>
+        <div className="flex items-center gap-2 pb-2 ml-auto">
+          <span className="text-sm text-muted-foreground">Show only completed</span>
+          <Switch
+            checked={showOnlyCompleted}
+            onCheckedChange={setShowOnlyCompleted}
+          />
         </div>
       </div>
 
@@ -135,17 +147,28 @@ export default function SalesHistory() {
                   </div>
                 )}
                 <div className="flex justify-end pt-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1 text-red-500 hover:text-red-600"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteCartId(c.id);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" /> Refund
-                  </Button>
+                  {c.status === 'refunded' ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled
+                      className="gap-1 text-muted-foreground"
+                    >
+                      Refunded
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1 text-red-500 hover:text-red-600"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteCartId(c.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" /> Refund
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
