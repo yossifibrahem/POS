@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { CartDetailModal } from "@/components/CartDetailModal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -31,13 +31,14 @@ interface Cart {
 }
 
 export default function SalesHistory() {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [carts, setCarts] = useState<Cart[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [deleteCartId, setDeleteCartId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
@@ -102,7 +103,7 @@ export default function SalesHistory() {
           <LoadingGrid count={4} columns={1} />
         ) : carts.length > 0 ? (
           carts.map((c) => (
-            <Card key={c.id} className="cursor-pointer w-full" onClick={() => navigate(`/dashboard/sales/${c.id}`)}>
+            <Card key={c.id} className="cursor-pointer w-full" onClick={() => { setSelectedCartId(c.id); setModalOpen(true); }}>
               <CardHeader>
                 <CardTitle className="text-sm font-medium">{formatDateTime(c.created_at)}</CardTitle>
               </CardHeader>
@@ -175,6 +176,12 @@ export default function SalesHistory() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CartDetailModal
+        cartId={selectedCartId}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+      />
     </div>
   );
 }
