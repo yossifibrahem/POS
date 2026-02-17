@@ -154,9 +154,9 @@ export function ProductDetailModal({
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <DollarSign className="h-5 w-5" />
-                  <span>Selling Price</span>
+                  <span>Price</span>
                 </div>
-                <p className="text-3xl font-bold text-primary">{formatCurrency(product.price)}</p>
+                <p className="text-xl sm:text-2xl font-bold text-primary">{formatCurrency(product.price)}</p>
               </div>
 
               <div className="space-y-2">
@@ -164,7 +164,7 @@ export function ProductDetailModal({
                   <Coins className="h-5 w-5" />
                   <span>Cost</span>
                 </div>
-                <p className="text-3xl font-bold">{formatCurrency(product.cost)}</p>
+                <p className="text-xl sm:text-2xl font-bold">{formatCurrency(product.cost)}</p>
               </div>
 
               <div className="space-y-2">
@@ -172,7 +172,7 @@ export function ProductDetailModal({
                   <Package className="h-5 w-5" />
                   <span>Profit</span>
                 </div>
-                <p className={`text-3xl font-bold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                <p className={`text-xl sm:text-2xl font-bold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
                   {formatCurrency(profit)}
                 </p>
               </div>
