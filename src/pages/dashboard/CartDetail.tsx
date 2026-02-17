@@ -95,7 +95,7 @@ export default function CartDetail() {
   if (!cart) return <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <Button variant="ghost" onClick={() => navigate(-1)} className="gap-2"><ArrowLeft className="h-4 w-4" /> Back</Button>
 
       <Card>

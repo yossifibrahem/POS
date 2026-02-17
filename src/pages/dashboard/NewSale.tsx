@@ -181,8 +181,8 @@ export default function NewSale() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-2">
+    <div className="space-y-2">
+      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-1">
         <h1 className="text-2xl font-bold">New Sale</h1>
         <Button
           variant="outline"
@@ -200,7 +200,7 @@ export default function NewSale() {
       </div>
 
       {/* Product Picker - full width */}
-      <div className="sticky top-[96px] z-10 bg-background py-2">
+      <div className="sticky top-[96px] z-10 bg-background py-1">
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

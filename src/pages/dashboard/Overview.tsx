@@ -56,8 +56,8 @@ export default function Overview() {
   ];
 
   return (
-    <div className="space-y-4">
-      <h1 className="sticky top-[48px] z-10 bg-background py-2 text-2xl font-bold">Dashboard</h1>
+    <div className="space-y-2">
+      <h1 className="sticky top-[48px] z-10 bg-background py-1 text-2xl font-bold">Dashboard</h1>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {loading ? (

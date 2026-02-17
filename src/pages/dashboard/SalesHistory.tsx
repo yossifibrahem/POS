@@ -82,10 +82,10 @@ export default function SalesHistory() {
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="sticky top-[48px] z-10 bg-background py-2 text-2xl font-bold">Sales History</h1>
+    <div className="space-y-2">
+      <h1 className="sticky top-[48px] z-10 bg-background py-1 text-2xl font-bold">Sales History</h1>
 
-      <div className="sticky top-[96px] z-10 flex gap-4 bg-background py-2">
+      <div className="sticky top-[96px] z-10 flex gap-4 bg-background py-1">
         <div className="space-y-1">
           <Label className="text-xs">From</Label>
           <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
