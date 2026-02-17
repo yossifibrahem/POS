@@ -28,7 +28,7 @@ interface Cart {
   status?: string;
   customers?: { full_name?: string };
   admins?: { customers?: { full_name?: string } };
-  sold_products?: { quantity: number; products?: { name?: string } }[];
+  sold_products?: { quantity: number; refunded_quantity: number; status?: string; products?: { name?: string } }[];
 }
 
 export default function SalesHistory() {
@@ -44,13 +44,15 @@ export default function SalesHistory() {
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
-      let query = supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, products(name))").order("created_at", { ascending: false });
+      let query = supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, refunded_quantity, status, products(name))").order("created_at", { ascending: false });
       if (showOnlyCompleted) {
         query = query.eq("status", "completed");
       }
       if (dateFrom) query = query.gte("created_at", dateFrom);
       if (dateTo) query = query.lte("created_at", dateTo + "T23:59:59");
       const { data } = await query;
+      
+      // Keep all items but mark refunded ones - we'll display them with visual indication
       setCarts(data || []);
     });
   }, [dateFrom, dateTo, showOnlyCompleted]);
@@ -61,15 +63,7 @@ export default function SalesHistory() {
     if (!deleteCartId) return;
     setProcessing(true);
     try {
-      // Delete all sold_products (database triggers will restore stock)
-      const { error: deleteSoldError } = await supabase
-        .from("sold_products")
-        .delete()
-        .eq("cart_id", deleteCartId);
-      
-      if (deleteSoldError) throw deleteSoldError;
-
-      // Mark cart as refunded instead of deleting
+      // Step 1: Mark cart as refunded
       const { error: updateCartError } = await supabase
         .from("carts")
         .update({ status: "refunded" })
@@ -77,11 +71,41 @@ export default function SalesHistory() {
       
       if (updateCartError) throw updateCartError;
 
+      // Step 2: Get all active sold_products for this cart
+      const { data: soldProducts, error: fetchError } = await supabase
+        .from("sold_products")
+        .select("id, quantity, refunded_quantity")
+        .eq("cart_id", deleteCartId)
+        .eq("status", "active");
+      
+      if (fetchError) throw fetchError;
+
+      // Step 3: Full refund each active item (set refunded_quantity = quantity)
+      // DB trigger will:
+      // - Restock each row (quantity - old_refunded_quantity units)
+      // - Auto-set status = 'refunded' when refunded_quantity = quantity
+      if (soldProducts && soldProducts.length > 0) {
+        const refundUpdates = soldProducts.map(sp => ({
+          id: sp.id,
+          refunded_quantity: sp.quantity  // Full refund
+        }));
+
+        for (const update of refundUpdates) {
+          const { error: updateSoldError } = await supabase
+            .from("sold_products")
+            .update({ refunded_quantity: update.refunded_quantity })
+            .eq("id", update.id);
+          
+          if (updateSoldError) throw updateSoldError;
+        }
+      }
+
       handleSuccess("Cart refunded successfully. Stock has been restored.");
       setDeleteCartId(null);
       load(); // Refresh the list
     } catch (e: unknown) {
-      handleError(e, "Refund failed");
+      const errorMessage = e instanceof Error ? e.message : "Refund failed";
+      handleError(e, errorMessage);
     } finally {
       setProcessing(false);
     }
@@ -133,14 +157,32 @@ export default function SalesHistory() {
                   <div className="pt-2 border-t">
                     <div className="text-xs text-muted-foreground mb-1">Products:</div>
                     <div className="flex flex-wrap gap-1">
-                      {c.sold_products.slice(0, 3).map((sp, idx) => (
-                        <span key={idx} className="text-xs bg-muted px-2 py-1 rounded">
-                          {sp.products?.name || "Unknown"} ({sp.quantity})
-                        </span>
-                      ))}
-                      {c.sold_products.length > 3 && (
+                      {c.sold_products.slice(0, 5).map((sp, idx) => {
+                        const isFullyRefunded = sp.status === 'refunded';
+                        const refundedQty = sp.refunded_quantity || 0;
+                        const isPartiallyRefunded = refundedQty > 0 && sp.status === 'active';
+                        const activeQty = sp.quantity - refundedQty;
+                        
+                        return (
+                          <span 
+                            key={idx} 
+                            className={`text-xs px-2 py-1 rounded ${
+                              isFullyRefunded 
+                                ? 'bg-red-100 text-red-600 line-through' 
+                                : isPartiallyRefunded
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : 'bg-muted'
+                            }`}
+                          >
+                            {sp.products?.name || "Unknown"} ({isPartiallyRefunded ? `${activeQty}/${sp.quantity}` : sp.quantity})
+                            {isFullyRefunded && ' - Refunded'}
+                            {isPartiallyRefunded && ' - Partial'}
+                          </span>
+                        );
+                      })}
+                      {c.sold_products.length > 5 && (
                         <span className="text-xs text-muted-foreground px-1">
-                          +{c.sold_products.length - 3} more
+                          +{c.sold_products.length - 5} more
                         </span>
                       )}
                     </div>

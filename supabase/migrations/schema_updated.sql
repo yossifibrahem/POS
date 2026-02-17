@@ -103,15 +103,19 @@ CREATE TABLE public.carts (
 -- Sold Products (line items)
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.sold_products (
-  id         UUID                     NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  cart_id    UUID                     NOT NULL REFERENCES public.carts(id) ON DELETE CASCADE,
-  product_id UUID                     REFERENCES public.products(id) ON DELETE SET NULL,
-  quantity   INTEGER                  NOT NULL DEFAULT 1 CHECK (quantity > 0),
-  unit_price NUMERIC                  NOT NULL CHECK (unit_price >= 0),
-  status     TEXT                     NOT NULL DEFAULT 'active'
-                                        CHECK (status IN ('active', 'refunded')),
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+  id                UUID                     NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  cart_id           UUID                     NOT NULL REFERENCES public.carts(id) ON DELETE CASCADE,
+  product_id        UUID                     REFERENCES public.products(id) ON DELETE SET NULL,
+  quantity          INTEGER                  NOT NULL DEFAULT 1 CHECK (quantity > 0),
+  refunded_quantity INTEGER                  NOT NULL DEFAULT 0 CHECK (refunded_quantity >= 0),
+  unit_price        NUMERIC                  NOT NULL CHECK (unit_price >= 0),
+  status            TEXT                     NOT NULL DEFAULT 'active'
+                                               CHECK (status IN ('active', 'refunded')),
+  created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+
+  CONSTRAINT chk_refunded_quantity_lte_quantity
+    CHECK (refunded_quantity <= quantity)
 );
 
 
@@ -193,10 +197,11 @@ CREATE TRIGGER trg_sold_products_updated_at
 -- =============================================================================
 -- TRIGGER FUNCTION: stock management (driven by cart status transitions)
 --
---   pending    → completed : DEDUCT  stock for all active sold_products
---   pending    → cancelled : DELETE  sold_products (stock was never deducted)
---   completed  → cancelled : RESTORE stock, then DELETE sold_products
---   completed  → refunded  : RESTORE stock, mark sold_products as 'refunded'
+--   pending   → completed : DEDUCT stock for all active sold_products
+--   pending   → cancelled : DELETE sold_products (stock was never deducted)
+--   completed → cancelled : BLOCKED — use 'refunded' instead
+--   completed → refunded  : status change only; restocking is handled per-item
+--                           by the sold_products status trigger below
 --
 --   Stock is intentionally NOT touched on sold_products INSERT/DELETE so that
 --   building / editing a pending cart never affects inventory.
@@ -214,12 +219,18 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  -- Block completed → cancelled (use 'refunded' for completed carts)
+  IF OLD.status = 'completed' AND NEW.status = 'cancelled' THEN
+    RAISE EXCEPTION
+      'Cannot cancel a completed cart. Use status ''refunded'' instead.';
+  END IF;
+
   -- pending → completed : deduct stock
   IF OLD.status = 'pending' AND NEW.status = 'completed' THEN
     UPDATE public.products p
        SET stock = stock - sp.quantity
       FROM public.sold_products sp
-     WHERE sp.cart_id   = NEW.id
+     WHERE sp.cart_id    = NEW.id
        AND sp.product_id = p.id
        AND sp.status     = 'active';
 
@@ -228,32 +239,10 @@ BEGIN
     DELETE FROM public.sold_products
      WHERE cart_id = NEW.id;
 
-  -- completed → cancelled : restore stock, then delete line items
-  ELSIF OLD.status = 'completed' AND NEW.status = 'cancelled' THEN
-    UPDATE public.products p
-       SET stock = stock + sp.quantity
-      FROM public.sold_products sp
-     WHERE sp.cart_id   = NEW.id
-       AND sp.product_id = p.id
-       AND sp.status     = 'active';
-
-    DELETE FROM public.sold_products
-     WHERE cart_id = NEW.id;
-
-  -- completed → refunded : restore stock, mark items as refunded
-  ELSIF OLD.status = 'completed' AND NEW.status = 'refunded' THEN
-    UPDATE public.products p
-       SET stock = stock + sp.quantity
-      FROM public.sold_products sp
-     WHERE sp.cart_id   = NEW.id
-       AND sp.product_id = p.id
-       AND sp.status     = 'active';
-
-    UPDATE public.sold_products
-       SET status = 'refunded'
-     WHERE cart_id = NEW.id
-       AND status  = 'active';
-
+  -- completed → refunded : cart status change only.
+  --   The app is responsible for updating sold_products.refunded_quantity
+  --   (set all rows to quantity for full refund, or specific rows for partial).
+  --   The sold_products trigger below handles restocking the delta each time.
   END IF;
 
   RETURN NEW;
@@ -263,6 +252,59 @@ $$;
 CREATE TRIGGER trg_manage_stock_on_cart_status_change
   AFTER UPDATE OF status ON public.carts
   FOR EACH ROW EXECUTE FUNCTION public.manage_stock_on_cart_status_change();
+
+
+-- =============================================================================
+-- TRIGGER FUNCTION: restock on sold_products refunded_quantity change
+--
+--   Fires when refunded_quantity increases. Restocks the delta (new - old).
+--   Automatically sets status = 'refunded' when refunded_quantity = quantity.
+--
+--   This handles both:
+--     - Partial refund : increase refunded_quantity by the returned amount
+--     - Full refund    : set refunded_quantity = quantity (status auto-set)
+--
+--   App flow:
+--     UPDATE sold_products
+--        SET refunded_quantity = refunded_quantity + :amount
+--      WHERE id = :soldProductId
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.restock_on_sold_product_refund()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_delta INTEGER;
+BEGIN
+  -- Only act when refunded_quantity increases
+  IF NEW.refunded_quantity <= OLD.refunded_quantity THEN
+    RETURN NEW;
+  END IF;
+
+  v_delta := NEW.refunded_quantity - OLD.refunded_quantity;
+
+  -- Restock the delta
+  IF NEW.product_id IS NOT NULL THEN
+    UPDATE public.products
+       SET stock = stock + v_delta
+     WHERE id = NEW.product_id;
+  END IF;
+
+  -- Auto-set status to 'refunded' when fully refunded
+  IF NEW.refunded_quantity = NEW.quantity THEN
+    NEW.status := 'refunded';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_restock_on_sold_product_refund
+  BEFORE UPDATE OF refunded_quantity ON public.sold_products
+  FOR EACH ROW EXECUTE FUNCTION public.restock_on_sold_product_refund();
 
 
 -- =============================================================================
@@ -287,10 +329,9 @@ BEGIN
 
   UPDATE public.carts
      SET total = COALESCE((
-           SELECT SUM(quantity * unit_price)
+           SELECT SUM((quantity - refunded_quantity) * unit_price)
              FROM public.sold_products
             WHERE cart_id = v_cart_id
-              AND status  = 'active'
          ), 0)
    WHERE id = v_cart_id;
 

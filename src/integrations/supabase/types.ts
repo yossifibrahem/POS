@@ -222,6 +222,8 @@ export type Database = {
           id: string
           product_id: string
           quantity: number
+          refunded_quantity: number
+          status: string
           unit_price: number
         }
         Insert: {
@@ -230,6 +232,8 @@ export type Database = {
           id?: string
           product_id: string
           quantity?: number
+          refunded_quantity?: number
+          status?: string
           unit_price: number
         }
         Update: {
@@ -238,6 +242,8 @@ export type Database = {
           id?: string
           product_id?: string
           quantity?: number
+          refunded_quantity?: number
+          status?: string
           unit_price?: number
         }
         Relationships: [

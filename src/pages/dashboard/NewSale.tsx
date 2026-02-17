@@ -113,51 +113,64 @@ export default function NewSale() {
     if (cart.length === 0) { toast.error("Cart is empty"); return; }
     if (!user) return;
 
-    // Validate stock
-    for (const item of cart) {
-      if (item.quantity > item.product.stock) {
-        toast.error(`Not enough stock for ${item.product.name}`);
-        return;
-      }
-    }
-
     setProcessing(true);
 
-    // Create cart (total will be calculated by database trigger)
-    const customerIdForSale = customerId === "walk-in" ? null : customerId;
-    const { data: cartData, error: cartError } = await supabase.from("carts").insert({
-      customer_id: customerIdForSale,
-      processed_by: user.id,
-      notes: notes || null,
-      status: "completed",
-    }).select().single();
+    try {
+      // Create cart as 'pending' first (triggers won't deduct stock yet)
+      const customerIdForSale = customerId === "walk-in" ? null : customerId;
+      const { data: cartData, error: cartError } = await supabase.from("carts").insert({
+        customer_id: customerIdForSale,
+        processed_by: user.id,
+        notes: notes || null,
+        status: "pending",
+      }).select().single();
 
-    if (cartError) { toast.error(cartError.message); setProcessing(false); return; }
+      if (cartError) throw cartError;
 
-    // Insert sold products
-    const soldItems = cart.map((i) => ({
-      cart_id: cartData.id,
-      product_id: i.product.id,
-      quantity: i.quantity,
-      unit_price: i.unit_price,
-    }));
+      // Insert sold products with explicit status: 'active'
+      const soldItems = cart.map((i) => ({
+        cart_id: cartData.id,
+        product_id: i.product.id,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        status: "active",
+      }));
 
-    const { error: soldError } = await supabase.from("sold_products").insert(soldItems);
-    if (soldError) { toast.error(soldError.message); setProcessing(false); return; }
+      const { error: soldError } = await supabase.from("sold_products").insert(soldItems);
+      if (soldError) throw soldError;
 
-    // Fetch updated cart total from database (calculated by trigger)
-    const { data: updatedCart } = await supabase.from("carts").select("total").eq("id", cartData.id).single();
+      // Complete the cart - DB trigger will deduct stock here
+      // If insufficient stock, the DB will throw a CHECK constraint violation
+      const { error: completeError } = await supabase
+        .from("carts")
+        .update({ status: "completed" })
+        .eq("id", cartData.id);
 
-    toast.success(`Sale processed! Total: $${Number(updatedCart?.total || 0).toFixed(2)}`);
-    setCart([]);
-    setCustomerId("walk-in");
-    setNotes("");
-    setCartOpen(false);
-    setProcessing(false);
+      if (completeError) {
+        // If there's a stock error, cancel the pending cart
+        await supabase.from("carts").update({ status: "cancelled" }).eq("id", cartData.id);
+        throw new Error("Insufficient stock for one or more items.");
+      }
 
-    // Reload products for updated stock
-    const { data } = await supabase.from("products").select("*, categories(name)").order("name");
-    setProducts(data || []);
+      // Fetch updated cart total from database (calculated by trigger)
+      const { data: updatedCart } = await supabase.from("carts").select("total").eq("id", cartData.id).single();
+
+      toast.success(`Sale processed! Total: $${Number(updatedCart?.total || 0).toFixed(2)}`);
+      setCart([]);
+      setCustomerId("walk-in");
+      setNotes("");
+      setCartOpen(false);
+
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : "Failed to process sale";
+      toast.error(errorMessage);
+    } finally {
+      setProcessing(false);
+      
+      // Reload products for updated stock
+      const { data } = await supabase.from("products").select("*, categories(name)").order("name");
+      setProducts(data || []);
+    }
   };
 
   const filteredProducts = sortProducts(

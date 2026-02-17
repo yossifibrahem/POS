@@ -1,25 +1,41 @@
-# Fix Empty Space Between Header and Elements
+# Cart & Stock Management Refactor - Implementation Plan
 
-## Problem
-Empty transparent space visible between the header and elements below it (search, sort, filter) on all dashboard pages.
+## Summary
 
-## Root Cause
-- `space-y-2` on main containers creates gaps between sticky elements
-- Sticky elements have `bg-background` but gaps between them are transparent
-- DashboardLayout has padding on content wrapper that compounds the issue
+The database schema is already updated with `refunded_quantity` column and proper triggers. The frontend code has been updated to use the new refund flow where:
+- Partial refund: Update `refunded_quantity = refunded_quantity + :amount`
+- Full refund: Update `refunded_quantity = quantity` (status auto-set by DB trigger)
 
-## Files to Fix
+## Files Edited
 
-- [x] src/components/DashboardLayout.tsx - Remove padding from content wrapper
-- [x] src/pages/dashboard/Overview.tsx - Remove space-y-2, fix sticky header structure
-- [x] src/pages/dashboard/Products.tsx - Remove space-y-2, fix sticky elements structure
-- [x] src/pages/dashboard/Categories.tsx - Remove space-y-2, fix sticky elements structure
-- [x] src/pages/dashboard/Customers.tsx - Remove space-y-2, fix sticky elements structure
-- [x] src/pages/dashboard/NewSale.tsx - Remove space-y-2, fix sticky elements structure
-- [x] src/pages/dashboard/SalesHistory.tsx - Remove space-y-2, fix sticky elements structure
+### 1. ✅ src/integrations/supabase/types.ts
+- Added `refunded_quantity` to `sold_products` Row, Insert, and Update types
 
-## Solution
-1. Remove `space-y-2` from all page containers
-2. Remove padding from DashboardLayout content div
-3. Add `bg-background` to cover any potential gaps
-4. Ensure sticky elements are positioned correctly without gaps
+### 2. ✅ src/components/CartDetailModal.tsx
+- Updated `SoldItemRow` type to include `refunded_quantity`
+- Fixed `handlePartialReturn` to use `refunded_quantity = refunded_quantity + :amount`
+- Updated display to show active/refunded quantities and subtotals
+- Added partial refund badge when `refunded_quantity > 0 AND status = 'active'`
+- Fixed quantity selector to show only available (non-refunded) quantity
+- Added null/undefined handling for backward compatibility
+
+### 3. ✅ src/pages/dashboard/SalesHistory.tsx
+- Updated `Cart` interface to include `refunded_quantity` in sold_products
+- Fixed `handleRefundCart` to use `refunded_quantity = quantity` for full refunds
+- Updated query to fetch `refunded_quantity`
+- Updated display to show partial refunds with yellow badge and active/total qty
+
+### 4. ✅ supabase/migrations/add_refunded_quantity.sql (NEW)
+- Migration file to add `refunded_quantity` column to database if not exists
+
+## Important: Apply Database Migration
+
+Before the refund functionality will work correctly, apply the migration:
+```bash
+npx supabase db push
+```
+Or run the SQL in the migration file manually in Supabase dashboard.
+
+## Build Status
+✅ Build successful - all TypeScript compiles correctly
+

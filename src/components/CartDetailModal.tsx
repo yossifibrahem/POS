@@ -29,6 +29,8 @@ type SoldItemRow = {
   id: string; 
   product_id: string; 
   quantity: number; 
+  refunded_quantity: number;
+  status: string;
   unit_price: number; 
   products?: { 
     name?: string; 
@@ -54,6 +56,7 @@ export function CartDetailModal({ cartId, open, onOpenChange }: CartDetailModalP
     if (!cartId) return;
     const [cartRes, itemsRes] = await Promise.all([
       supabase.from("carts").select("*, customers(full_name, email), admins(customers:customers(full_name))").eq("id", cartId).single(),
+      // Fetch all sold_products including refunded ones for full history
       supabase.from("sold_products").select("*, products(name, stock, attributes, categories(name))").eq("cart_id", cartId),
     ]);
     if (cartRes.data) setCart(cartRes.data);
@@ -75,21 +78,22 @@ export function CartDetailModal({ cartId, open, onOpenChange }: CartDetailModalP
   }, [open, cartId, loadData]);
 
   const handlePartialReturn = async (item: SoldItemRow) => {
+    const currentRefunded = item.refunded_quantity || 0;
     const qty = returnQty[item.id] ?? 1;
-    if (qty < 1 || qty > item.quantity) return;
+    const newRefundedQty = currentRefunded + qty;
+    if (qty < 1 || newRefundedQty > item.quantity) return;
     setReturningId(item.id);
     try {
-      // Database trigger will handle stock restoration
-      if (qty === item.quantity) {
-        const { error: deleteError } = await supabase.from("sold_products").delete().eq("id", item.id);
-        if (deleteError) throw deleteError;
-      } else {
-        const { error: updateError } = await supabase
-          .from("sold_products")
-          .update({ quantity: item.quantity - qty })
-          .eq("id", item.id);
-        if (updateError) throw updateError;
-      }
+      // Update refunded_quantity - DB trigger will:
+      // 1. Restock the delta (new - old refunded_quantity)
+      // 2. Auto-set status = 'refunded' when refunded_quantity = quantity
+      const { error: updateError } = await supabase
+        .from("sold_products")
+        .update({ refunded_quantity: newRefundedQty })
+        .eq("id", item.id)
+        .eq("status", "active");
+
+      if (updateError) throw updateError;
 
       // Database trigger will recalculate cart total
       setReturnQty((prev) => {
@@ -100,7 +104,8 @@ export function CartDetailModal({ cartId, open, onOpenChange }: CartDetailModalP
       await loadData();
       toast.success(`Returned ${qty} unit(s). Stock restored.`);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Return failed");
+      const errorMessage = e instanceof Error ? e.message : "Return failed";
+      toast.error(errorMessage);
     } finally {
       setReturningId(null);
     }
@@ -144,33 +149,63 @@ export function CartDetailModal({ cartId, open, onOpenChange }: CartDetailModalP
                 {items.map((item) => {
                   const attributes = getAttributes(item.products?.attributes);
                   const hasAttributes = Object.keys(attributes).length > 0;
+                  const refundedQty = item.refunded_quantity || 0;
+                  const isFullyRefunded = item.status === 'refunded';
+                  const isPartiallyRefunded = refundedQty > 0 && item.status === 'active';
+                  const activeQuantity = item.quantity - refundedQty;
+                  const activeSubtotal = activeQuantity * Number(item.unit_price);
+                  const refundedSubtotal = refundedQty * Number(item.unit_price);
                   
                   return (
-                    <div key={item.id} className="rounded-lg border bg-card p-4">
+                    <div key={item.id} className={`rounded-lg border bg-card p-4 ${isFullyRefunded ? 'opacity-60 bg-red-50' : ''}`}>
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 text-sm font-medium">
                           <Package className="h-4 w-4 text-muted-foreground" />
                           {item.products?.name}
                         </div>
-                        {item.products?.categories?.name && (
-                          <Badge variant="secondary" className="text-xs">
-                            {item.products.categories.name}
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {isFullyRefunded && (
+                            <Badge variant="destructive" className="text-xs">
+                              Refunded
+                            </Badge>
+                          )}
+                          {isPartiallyRefunded && (
+                            <Badge variant="outline" className="text-xs bg-yellow-50">
+                              Partial Refund
+                            </Badge>
+                          )}
+                          {item.products?.categories?.name && (
+                            <Badge variant="secondary" className="text-xs">
+                              {item.products.categories.name}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
-                          <span>Qty</span>
+                          <span>Sold Qty</span>
                           <span className="font-medium">{item.quantity}</span>
                         </div>
+                        {isPartiallyRefunded && (
+                          <div className="flex items-center justify-between text-sm text-muted-foreground">
+                            <span>Refunded</span>
+                            <span className="line-through">-{refundedQty}</span>
+                          </div>
+                        )}
+                        {isPartiallyRefunded && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span>Active Qty</span>
+                            <span className="font-medium">{activeQuantity}</span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-sm">
                           <span>Unit Price</span>
                           <span className="font-medium">${Number(item.unit_price).toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span>Line Total</span>
-                          <span className="font-semibold">${(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
+                          <span className={`font-semibold ${isFullyRefunded ? 'line-through' : ''}`}>${activeSubtotal.toFixed(2)}</span>
                         </div>
                         
                         {/* Product Attributes Section */}
@@ -200,31 +235,33 @@ export function CartDetailModal({ cartId, open, onOpenChange }: CartDetailModalP
                           </>
                         )}
 
-                        {/* Return Section */}
-                        <div className="flex items-center justify-between gap-2 pt-2 border-t">
-                          <Select
-                            value={String(returnQty[item.id] ?? 1)}
-                            onValueChange={(v) => setReturnQty((p) => ({ ...p, [item.id]: parseInt(v, 10) }))}
-                          >
-                            <SelectTrigger className="h-8 w-20">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Array.from({ length: item.quantity }, (_, i) => i + 1).map((n) => (
-                                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 h-8 text-red-500 hover:text-red-600"
-                            onClick={() => handlePartialReturn(item)}
-                            disabled={returningId === item.id}
-                          >
-                            {returningId === item.id ? "..." : <><RotateCcw className="h-3 w-3" /> Return</>}
-                          </Button>
-                        </div>
+                        {/* Return Section - only show for active items */}
+                        {!isFullyRefunded && activeQuantity > 0 && (
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                            <Select
+                              value={String(returnQty[item.id] ?? 1)}
+                              onValueChange={(v) => setReturnQty((p) => ({ ...p, [item.id]: parseInt(v, 10) }))}
+                            >
+                              <SelectTrigger className="h-8 w-20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: activeQuantity }, (_, i) => i + 1).map((n) => (
+                                  <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1 h-8 text-red-500 hover:text-red-600"
+                              onClick={() => handlePartialReturn(item)}
+                              disabled={returningId === item.id}
+                            >
+                              {returningId === item.id ? "..." : <><RotateCcw className="h-3 w-3" /> Return</>}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
