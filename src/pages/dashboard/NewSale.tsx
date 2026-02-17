@@ -292,29 +292,34 @@ export default function NewSale() {
             ) : (
               <div className="space-y-3">
                 {cart.map((item) => (
-                  <Card key={item.product.id} className="p-0">
-                    <CardContent className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.product.name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <Input className="w-14 h-6 text-center text-sm p-0" type="number" min="1" max={item.product.stock} value={item.quantity}
-                            onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 1)} />
-                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.product.id, item.quantity + 1)}>
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                          <span className="text-xs text-muted-foreground">×</span>
-                          <Input className="w-20 h-6 text-sm p-1" type="number" min="0" step="0.01" value={item.unit_price}
+                  <Card key={item.product.id} className="p-3 relative">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-7 w-7 absolute top-2 right-2 text-muted-foreground hover:text-destructive" 
+                      onClick={() => removeItem(item.product.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <CardContent className="p-0 pr-8">
+                      <p className="text-sm font-medium truncate pr-2">{item.product.name}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <Input className="w-14 h-7 text-center text-sm" type="number" min="1" max={item.product.stock} value={item.quantity}
+                          onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 1)} />
+                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.product.id, item.quantity + 1)}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-between mt-3 pt-2 border-t">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Price:</span>
+                          <Input className="w-24 h-7 text-sm" type="number" min="0" step="0.01" value={item.unit_price}
                             onChange={(e) => updatePrice(item.product.id, parseFloat(e.target.value) || 0)} />
                         </div>
-                      </div>
-                      <div className="text-right">
                         <p className="text-sm font-semibold">{formatCurrency(item.quantity * item.unit_price)}</p>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(item.product.id)}>
-                          <X className="h-3 w-3" />
-                        </Button>
                       </div>
                     </CardContent>
                   </Card>
