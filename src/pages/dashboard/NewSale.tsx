@@ -59,7 +59,7 @@ export default function NewSale() {
   const [filterCat, setFilterCat] = useState("all");
   const [sort, setSort] = useState<SortOptions>({ field: "name", direction: "asc" });
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [customerId, setCustomerId] = useState("");
+  const [customerId, setCustomerId] = useState("walk-in");
   const [customerSearch, setCustomerSearch] = useState("");
   const [notes, setNotes] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -76,13 +76,6 @@ export default function NewSale() {
       setProducts((productsRes.data || []) as Product[]);
       setCategories(categoriesRes.data || []);
       setCustomers(customersRes.data || []);
-      // Auto-select the customer if the logged-in user is an admin (their ID matches a customer ID)
-      if (user) {
-        const matchingCustomer = customersRes.data?.find((c) => c.id === user.id);
-        if (matchingCustomer) {
-          setCustomerId(user.id);
-        }
-      }
       setLoading(false);
     });
   }, [user]);
@@ -117,7 +110,6 @@ export default function NewSale() {
   const total = cart.reduce((s, i) => s + i.quantity * i.unit_price, 0);
 
   const processSale = async () => {
-    if (!customerId) { toast.error("Select a customer"); return; }
     if (cart.length === 0) { toast.error("Cart is empty"); return; }
     if (!user) return;
 
@@ -132,8 +124,9 @@ export default function NewSale() {
     setProcessing(true);
 
     // Create cart (total will be calculated by database trigger)
+    const customerIdForSale = customerId === "walk-in" ? null : customerId;
     const { data: cartData, error: cartError } = await supabase.from("carts").insert({
-      customer_id: customerId,
+      customer_id: customerIdForSale,
       processed_by: user.id,
       notes: notes || null,
       status: "completed",
@@ -157,7 +150,7 @@ export default function NewSale() {
 
     toast.success(`Sale processed! Total: $${Number(updatedCart?.total || 0).toFixed(2)}`);
     setCart([]);
-    setCustomerId("");
+    setCustomerId("walk-in");
     setNotes("");
     setCartOpen(false);
     setProcessing(false);
@@ -301,6 +294,7 @@ export default function NewSale() {
               <Select value={customerId} onValueChange={setCustomerId}>
                 <SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="walk-in">Walk-in Customer</SelectItem>
                   {filteredCustomers.map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.full_name} ({c.email})</SelectItem>
                   ))}

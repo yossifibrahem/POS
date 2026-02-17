@@ -130,7 +130,7 @@ export function CartDetailModal({ cartId, open, onOpenChange }: CartDetailModalP
             {/* Sale Info Card */}
             <div className="rounded-lg border bg-card p-4 space-y-2">
               <div className="grid gap-2 text-sm sm:grid-cols-2">
-                <p><span className="font-medium">Customer:</span> {cart.customers?.full_name}</p>
+                <p><span className="font-medium">Customer:</span> {cart.customers?.full_name || "Walk-in Customer"}</p>
                 <p><span className="font-medium">Processed by:</span> {cart.admins?.customers?.full_name || "Unknown"}</p>
                 <p><span className="font-medium">Date:</span> {new Date(cart.created_at).toLocaleString()}</p>
                 <p><span className="font-medium">Total:</span> ${Number(cart.total).toFixed(2)}</p>

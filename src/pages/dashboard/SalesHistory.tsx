@@ -121,7 +121,7 @@ export default function SalesHistory() {
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
-                  <span>{c.customers?.full_name || "Unknown"}</span>
+                  <span>{c.customers?.full_name || "Walk-in Customer"}</span>
                   <span className="hidden sm:inline">•</span>
                   <span>Processed by: {c.admins?.customers?.full_name || "Unknown"}</span>
                 </div>

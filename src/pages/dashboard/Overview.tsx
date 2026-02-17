@@ -96,7 +96,7 @@ export default function Overview() {
                   {recentCarts.map((cart) => (
                     <div key={cart.id} className="flex items-center justify-between rounded border p-2 text-sm">
                       <div>
-                        <p className="font-medium">{cart.customers?.full_name || "Unknown"}</p>
+                        <p className="font-medium">{cart.customers?.full_name || "Walk-in Customer"}</p>
                         <p className="text-xs text-muted-foreground">{formatDateTime(cart.created_at)}</p>
                       </div>
                       <p className="font-semibold">{formatCurrency(Number(cart.total))}</p>

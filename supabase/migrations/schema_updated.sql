@@ -84,10 +84,12 @@ CREATE TABLE public.admins (
 
 -- ---------------------------------------------------------------------------
 -- Carts
+-- customer_id is nullable to support walk-in (in-person) sales where the
+-- customer is not registered in the system.
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.carts (
   id           UUID                     NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  customer_id  UUID                     NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+  customer_id  UUID                     REFERENCES public.customers(id) ON DELETE CASCADE,
   processed_by UUID                     REFERENCES public.admins(id) ON DELETE SET NULL,
   status       TEXT                     NOT NULL DEFAULT 'pending'
                                           CHECK (status IN ('pending', 'completed', 'refunded', 'cancelled')),
@@ -423,6 +425,7 @@ CREATE POLICY "admins_delete"
 
 -- ---------------------------------------------------------------------------
 -- Carts: users see own carts, admins full access
+-- Walk-in carts (customer_id IS NULL) are visible to admins only.
 -- ---------------------------------------------------------------------------
 CREATE POLICY "carts_select"
   ON public.carts FOR SELECT
