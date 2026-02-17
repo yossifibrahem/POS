@@ -14,6 +14,7 @@ import { ArrowLeft, RotateCcw, Package } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import type { Json } from "@/integrations/supabase/types";
 
 type CartRow = { id: string; total: number; created_at: string; notes?: string | null; customers?: { full_name?: string; email?: string }; admins?: { customers?: { full_name?: string } } };
 type SoldItemRow = { 
@@ -24,7 +25,7 @@ type SoldItemRow = {
   products?: { 
     name?: string; 
     stock?: number; 
-    attributes?: Record<string, string | number | boolean>;
+    attributes?: Json;
     categories?: { name?: string } | null;
   } 
 };
@@ -83,6 +84,14 @@ export default function CartDetail() {
     }
   };
 
+  // Helper function to safely parse attributes
+  const getAttributes = (attributes: Json | undefined): Record<string, string | number | boolean> => {
+    if (!attributes || typeof attributes !== 'object' || Array.isArray(attributes)) {
+      return {};
+    }
+    return attributes as Record<string, string | number | boolean>;
+  };
+
   if (!cart) return <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   return (
@@ -104,89 +113,94 @@ export default function CartDetail() {
 
       {items.length > 0 && (
         <div className="grid gap-4 grid-cols-1">
-          {items.map((item) => (
-            <Card key={item.id} className="w-full">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                    {item.products?.name}
-                  </CardTitle>
-                  {item.products?.categories?.name && (
-                    <Badge variant="secondary" className="text-xs">
-                      {item.products.categories.name}
-                    </Badge>
+          {items.map((item) => {
+            const attributes = getAttributes(item.products?.attributes);
+            const hasAttributes = Object.keys(attributes).length > 0;
+            
+            return (
+              <Card key={item.id} className="w-full">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                      {item.products?.name}
+                    </CardTitle>
+                    {item.products?.categories?.name && (
+                      <Badge variant="secondary" className="text-xs">
+                        {item.products.categories.name}
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Qty</span>
+                    <span className="font-medium">{item.quantity}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Unit Price</span>
+                    <span className="font-medium">${Number(item.unit_price).toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Line Total</span>
+                    <span className="font-semibold">${(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
+                  </div>
+                  
+                  {/* Product Attributes Section */}
+                  {hasAttributes && (
+                    <>
+                      <Separator className="my-2" />
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          Product Attributes
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(attributes).map(([key, value]) => (
+                            <div key={key} className="flex flex-col">
+                              <span className="text-xs text-muted-foreground capitalize">
+                                {key.replace(/_/g, ' ')}
+                              </span>
+                              <span className="text-sm font-medium">
+                                {typeof value === 'boolean' 
+                                  ? (value ? 'Yes' : 'No')
+                                  : String(value)
+                                }
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
                   )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Qty</span>
-                  <span className="font-medium">{item.quantity}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span>Unit Price</span>
-                  <span className="font-medium">${Number(item.unit_price).toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span>Line Total</span>
-                  <span className="font-semibold">${(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
-                </div>
-                
-                {/* Product Attributes Section */}
-                {item.products?.attributes && Object.keys(item.products.attributes).length > 0 && (
-                  <>
-                    <Separator className="my-2" />
-                    <div className="space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        Product Attributes
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {Object.entries(item.products.attributes).map(([key, value]) => (
-                          <div key={key} className="flex flex-col">
-                            <span className="text-xs text-muted-foreground capitalize">
-                              {key.replace(/_/g, ' ')}
-                            </span>
-                            <span className="text-sm font-medium">
-                              {typeof value === 'boolean' 
-                                ? (value ? 'Yes' : 'No')
-                                : String(value)
-                              }
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
 
-                <div className="flex items-center justify-between gap-2 pt-2">
-                  <Select
-                    value={String(returnQty[item.id] ?? 1)}
-                    onValueChange={(v) => setReturnQty((p) => ({ ...p, [item.id]: parseInt(v, 10) }))}
-                  >
-                    <SelectTrigger className="h-8 w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: item.quantity }, (_, i) => i + 1).map((n) => (
-                        <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1 h-8 text-red-500 hover:text-red-600"
-                    onClick={() => handlePartialReturn(item)}
-                    disabled={returningId === item.id}
-                  >
-                    {returningId === item.id ? "..." : <><RotateCcw className="h-3 w-3" /> Return</>}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="flex items-center justify-between gap-2 pt-2">
+                    <Select
+                      value={String(returnQty[item.id] ?? 1)}
+                      onValueChange={(v) => setReturnQty((p) => ({ ...p, [item.id]: parseInt(v, 10) }))}
+                    >
+                      <SelectTrigger className="h-8 w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: item.quantity }, (_, i) => i + 1).map((n) => (
+                          <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1 h-8 text-red-500 hover:text-red-600"
+                      onClick={() => handlePartialReturn(item)}
+                      disabled={returningId === item.id}
+                    >
+                      {returningId === item.id ? "..." : <><RotateCcw className="h-3 w-3" /> Return</>}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
