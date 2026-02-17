@@ -51,7 +51,7 @@ function CartCard({ cart, showCustomer, onClick }: { cart: Cart; showCustomer?: 
       <CardContent className="pt-0">
         {showCustomer && (
           <div className="text-sm text-muted-foreground mb-2">
-            Customer: {cart.customers?.full_name || "Unknown"}
+            Customer: {cart.customers?.full_name || "Walk-in Customer"}
           </div>
         )}
         <div className="flex items-center justify-between text-sm">
