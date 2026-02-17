@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { toast } from "sonner";
 import { Search, Plus, Minus, X, ShoppingCart } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-import { filterProducts, filterCustomers } from "@/lib/filters";
+import { filterProducts, filterCustomers, sortProducts, SortOptions } from "@/lib/filters";
 import { LoadingGrid } from "@/components/LoadingGrid";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 
@@ -57,6 +57,7 @@ export default function NewSale() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
+  const [sort, setSort] = useState<SortOptions>({ field: "name", direction: "asc" });
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
@@ -166,7 +167,10 @@ export default function NewSale() {
     setProducts(data || []);
   };
 
-  const filteredProducts = filterProducts(products, search, filterCat);
+  const filteredProducts = sortProducts(
+    filterProducts(products, search, filterCat),
+    sort
+  );
   const filteredCustomers = filterCustomers(customers, customerSearch);
 
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0);
@@ -198,18 +202,37 @@ export default function NewSale() {
 
       {/* Product Picker - full width */}
       <div className="space-y-3">
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Search products..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <Select value={filterCat} onValueChange={setFilterCat}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Category" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Select value={filterCat} onValueChange={setFilterCat}>
+              <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select 
+              value={`${sort.field}-${sort.direction}`} 
+              onValueChange={(value) => {
+                const [field, direction] = value.split("-") as [SortOptions["field"], SortOptions["direction"]];
+                setSort({ field, direction });
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Sort by..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                <SelectItem value="price-asc">Price (Low-High)</SelectItem>
+                <SelectItem value="price-desc">Price (High-Low)</SelectItem>
+                <SelectItem value="stock-asc">Stock (Low-High)</SelectItem>
+                <SelectItem value="stock-desc">Stock (High-Low)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-h-[70vh] overflow-y-auto">

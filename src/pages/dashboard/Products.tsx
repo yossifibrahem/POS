@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { withLoading, handleError, handleSuccess, validateRequired, validateNonNegative } from "@/lib/api";
 import { formatCurrency } from "@/lib/formatters";
-import { filterProducts } from "@/lib/filters";
+import { filterProducts, sortProducts, SortOptions } from "@/lib/filters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 
@@ -55,6 +55,7 @@ export default function Products() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
+  const [sort, setSort] = useState<SortOptions>({ field: "created_at", direction: "desc" });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -248,7 +249,10 @@ export default function Products() {
     return <Badge variant="outline">In Stock</Badge>;
   };
 
-  const filtered = filterProducts(products, search, filterCat);
+  const filtered = sortProducts(
+    filterProducts(products, search, filterCat),
+    sort
+  );
 
   return (
     <div className="space-y-4">
@@ -257,18 +261,39 @@ export default function Products() {
         <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Add Product</Button>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search products..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Select value={filterCat} onValueChange={setFilterCat}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="All Categories" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex gap-3">
+          <Select value={filterCat} onValueChange={setFilterCat}>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="All Categories" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select 
+            value={`${sort.field}-${sort.direction}`} 
+            onValueChange={(value) => {
+              const [field, direction] = value.split("-") as [SortOptions["field"], SortOptions["direction"]];
+              setSort({ field, direction });
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Sort by..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+              <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+              <SelectItem value="price-asc">Price (Low-High)</SelectItem>
+              <SelectItem value="price-desc">Price (High-Low)</SelectItem>
+              <SelectItem value="stock-asc">Stock (Low-High)</SelectItem>
+              <SelectItem value="stock-desc">Stock (High-Low)</SelectItem>
+              <SelectItem value="created_at-desc">Newest First</SelectItem>
+              <SelectItem value="created_at-asc">Oldest First</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

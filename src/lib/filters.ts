@@ -51,3 +51,50 @@ export function filterCustomers<T extends { full_name: string; email: string }>(
       c.email.toLowerCase().includes(term)
   );
 }
+
+export type SortField = "name" | "price" | "stock" | "created_at";
+export type SortDirection = "asc" | "desc";
+
+export interface SortOptions {
+  field: SortField;
+  direction: SortDirection;
+}
+
+/**
+ * Sort products by specified field and direction
+ */
+export function sortProducts<T extends { 
+  name: string; 
+  price: number; 
+  stock: number; 
+  created_at: string 
+}>(
+  products: T[],
+  sort: SortOptions
+): T[] {
+  const { field, direction } = sort;
+  const multiplier = direction === "asc" ? 1 : -1;
+
+  return [...products].sort((a, b) => {
+    let comparison = 0;
+
+    switch (field) {
+      case "name":
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case "price":
+        comparison = a.price - b.price;
+        break;
+      case "stock":
+        comparison = a.stock - b.stock;
+        break;
+      case "created_at":
+        comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        break;
+      default:
+        return 0;
+    }
+
+    return comparison * multiplier;
+  });
+}
