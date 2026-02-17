@@ -27,7 +27,7 @@ interface Cart {
   status?: string;
   customers?: { full_name?: string };
   admins?: { customers?: { full_name?: string } };
-  sold_products?: { quantity: number }[];
+  sold_products?: { quantity: number; products?: { name?: string } }[];
 }
 
 export default function SalesHistory() {
@@ -41,7 +41,7 @@ export default function SalesHistory() {
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
-      let query = supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity)").eq("status", "completed").order("created_at", { ascending: false });
+      let query = supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, products(name))").eq("status", "completed").order("created_at", { ascending: false });
       if (dateFrom) query = query.gte("created_at", dateFrom);
       if (dateTo) query = query.lte("created_at", dateTo + "T23:59:59");
       const { data } = await query;
@@ -116,6 +116,23 @@ export default function SalesHistory() {
                   <div className="text-sm">Items: {c.sold_products?.length || 0}</div>
                   <div className="font-semibold">{formatCurrency(Number(c.total))}</div>
                 </div>
+                {c.sold_products && c.sold_products.length > 0 && (
+                  <div className="pt-2 border-t">
+                    <div className="text-xs text-muted-foreground mb-1">Products:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {c.sold_products.slice(0, 3).map((sp, idx) => (
+                        <span key={idx} className="text-xs bg-muted px-2 py-1 rounded">
+                          {sp.products?.name || "Unknown"} ({sp.quantity})
+                        </span>
+                      ))}
+                      {c.sold_products.length > 3 && (
+                        <span className="text-xs text-muted-foreground px-1">
+                          +{c.sold_products.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-end pt-2">
                   <Button
                     variant="ghost"

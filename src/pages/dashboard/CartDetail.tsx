@@ -10,11 +10,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, RotateCcw } from "lucide-react";
+import { ArrowLeft, RotateCcw, Package } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 type CartRow = { id: string; total: number; created_at: string; notes?: string | null; customers?: { full_name?: string; email?: string }; admins?: { customers?: { full_name?: string } } };
-type SoldItemRow = { id: string; product_id: string; quantity: number; unit_price: number; products?: { name?: string; stock?: number } };
+type SoldItemRow = { 
+  id: string; 
+  product_id: string; 
+  quantity: number; 
+  unit_price: number; 
+  products?: { 
+    name?: string; 
+    stock?: number; 
+    attributes?: Record<string, string | number | boolean>;
+    categories?: { name?: string } | null;
+  } 
+};
 
 export default function CartDetail() {
   const { cartId } = useParams();
@@ -28,7 +41,7 @@ export default function CartDetail() {
     if (!cartId) return;
     const [cartRes, itemsRes] = await Promise.all([
       supabase.from("carts").select("*, customers(full_name, email), admins(customers:customers(full_name))").eq("id", cartId).single(),
-      supabase.from("sold_products").select("*, products(name, stock)").eq("cart_id", cartId),
+      supabase.from("sold_products").select("*, products(name, stock, attributes, categories(name))").eq("cart_id", cartId),
     ]);
     if (cartRes.data) setCart(cartRes.data);
     setItems(itemsRes.data || []);
@@ -93,8 +106,18 @@ export default function CartDetail() {
         <div className="grid gap-4 grid-cols-1">
           {items.map((item) => (
             <Card key={item.id} className="w-full">
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">{item.products?.name}</CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                    {item.products?.name}
+                  </CardTitle>
+                  {item.products?.categories?.name && (
+                    <Badge variant="secondary" className="text-xs">
+                      {item.products.categories.name}
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
@@ -109,7 +132,35 @@ export default function CartDetail() {
                   <span>Line Total</span>
                   <span className="font-semibold">${(item.quantity * Number(item.unit_price)).toFixed(2)}</span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
+                
+                {/* Product Attributes Section */}
+                {item.products?.attributes && Object.keys(item.products.attributes).length > 0 && (
+                  <>
+                    <Separator className="my-2" />
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Product Attributes
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(item.products.attributes).map(([key, value]) => (
+                          <div key={key} className="flex flex-col">
+                            <span className="text-xs text-muted-foreground capitalize">
+                              {key.replace(/_/g, ' ')}
+                            </span>
+                            <span className="text-sm font-medium">
+                              {typeof value === 'boolean' 
+                                ? (value ? 'Yes' : 'No')
+                                : String(value)
+                              }
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="flex items-center justify-between gap-2 pt-2">
                   <Select
                     value={String(returnQty[item.id] ?? 1)}
                     onValueChange={(v) => setReturnQty((p) => ({ ...p, [item.id]: parseInt(v, 10) }))}
