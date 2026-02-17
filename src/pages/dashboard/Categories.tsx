@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,35 +16,8 @@ import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, GripVertical, Search } fr
 import { withLoading, handleError, handleSuccess, validateRequired } from "@/lib/api";
 import { formatDate } from "@/lib/formatters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
-
-interface Category {
-  id: string;
-  name: string;
-  created_at: string;
-  product_count?: number;
-}
-
-type AttributeType = 'text' | 'number' | 'boolean' | 'enum';
-
-interface CategoryAttribute {
-  id?: string;
-  category_id: string;
-  name: string;
-  label: string;
-  attribute_type: string;
-  unit?: string;
-  options?: Json;
-  is_required: boolean;
-  display_order: number;
-}
-
-// Helper to safely parse options from Json to string array
-function parseOptions(options: Json | undefined): string[] {
-  if (Array.isArray(options)) {
-    return options.filter((o): o is string => typeof o === 'string');
-  }
-  return [];
-}
+import type { Category, CategoryAttribute, AttributeType } from "@/types/category";
+import { parseOptions, getAttributeTypeBadgeClass } from "@/lib/attributes";
 
 export default function Categories() {
   const [loading, setLoading] = useState(true);
@@ -115,7 +87,11 @@ export default function Categories() {
       handleError(error, "Failed to load attributes");
       setAttributes([]);
     } else {
-      setAttributes(data || []);
+      setAttributes((data || []).map(attr => ({
+        ...attr,
+        attribute_type: attr.attribute_type as AttributeType,
+        unit: attr.unit || null,
+      })));
     }
   };
 
@@ -238,15 +214,6 @@ export default function Categories() {
     setAttributeForm(prev => ({ ...prev, options }));
   };
 
-  const getAttributeTypeBadge = (type: AttributeType) => {
-    const colors: Record<AttributeType, string> = {
-      text: "bg-blue-100 text-blue-800",
-      number: "bg-green-100 text-green-800",
-      boolean: "bg-purple-100 text-purple-800",
-      enum: "bg-orange-100 text-orange-800",
-    };
-    return <Badge className={colors[type]}>{type}</Badge>;
-  };
 
   const handleSave = async () => {
     if (!validateRequired(name, "Name")) return;
@@ -351,7 +318,7 @@ export default function Categories() {
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">{attr.label}</span>
-                                {getAttributeTypeBadge(attr.attribute_type as AttributeType)}
+                                <Badge className={getAttributeTypeBadgeClass(attr.attribute_type as AttributeType)}>{attr.attribute_type}</Badge>
                                 {attr.is_required && <Badge variant="destructive" className="text-xs">Required</Badge>}
                               </div>
                               <div className="text-xs text-muted-foreground">

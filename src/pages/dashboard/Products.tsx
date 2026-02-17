@@ -17,6 +17,8 @@ import { formatCurrency } from "@/lib/formatters";
 import { filterProducts, sortProducts, SortOptions } from "@/lib/filters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
+import type { CategoryAttribute, AttributeType } from "@/types/category";
+import { parseOptions } from "@/lib/attributes";
 
 interface Product {
   id: string;
@@ -33,20 +35,6 @@ interface Product {
 interface Category {
   id: string;
   name: string;
-}
-
-type AttributeType = 'text' | 'number' | 'boolean' | 'enum';
-
-interface CategoryAttribute {
-  id: string;
-  category_id: string;
-  name: string;
-  label: string;
-  attribute_type: AttributeType;
-  unit?: string;
-  options?: string[];
-  is_required: boolean;
-  display_order: number;
 }
 
 export default function Products() {
@@ -179,7 +167,7 @@ export default function Products() {
               <SelectValue placeholder={`Select ${attr.label.toLowerCase()}`} />
             </SelectTrigger>
             <SelectContent>
-              {attr.options?.map((option) => (
+              {parseOptions(attr.options).map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}{attr.unit ? ` ${attr.unit}` : ''}
                 </SelectItem>
