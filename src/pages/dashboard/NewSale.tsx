@@ -108,6 +108,8 @@ export default function NewSale() {
   };
 
   const total = cart.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  const originalTotal = cart.reduce((s, i) => s + i.quantity * i.product.price, 0);
+  const discount = originalTotal - total;
 
   const processSale = async () => {
     if (cart.length === 0) { toast.error("Cart is empty"); return; }
@@ -350,7 +352,7 @@ export default function NewSale() {
                           <Input className="w-24 h-7 text-sm" type="number" min="0" step="0.01" value={item.unit_price}
                             onChange={(e) => updatePrice(item.product.id, parseFloat(e.target.value) || 0)} />
                         </div>
-                        <p className="text-sm font-semibold">{formatCurrency(item.quantity * item.unit_price)}</p>
+                        <p className="text-sm font-semibold">{formatCurrency(item.quantity * item.product.price)}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -371,6 +373,18 @@ export default function NewSale() {
               <span>Total</span>
               <span>{formatCurrency(total)}</span>
             </div>
+            {discount > 0 && (
+              <div className="flex items-center justify-between text-sm text-green-600 mt-1">
+                <span>Discount</span>
+                <span>-{formatCurrency(discount)}</span>
+              </div>
+            )}
+            {discount < 0 && (
+              <div className="flex items-center justify-between text-sm text-amber-600 mt-1">
+                <span>Extra</span>
+                <span>+{formatCurrency(Math.abs(discount))}</span>
+              </div>
+            )}
             <Button className="w-full mt-3" size="lg" disabled={processing || cart.length === 0} onClick={processSale}>
               {processing ? "Processing..." : "Process Sale"}
             </Button>
