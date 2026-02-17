@@ -182,7 +182,7 @@ export default function NewSale() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-2">
+      <div className="sticky top-[48px] z-30 flex items-center justify-between bg-background py-2">
         <h1 className="text-2xl font-bold">New Sale</h1>
         <Button
           variant="outline"
