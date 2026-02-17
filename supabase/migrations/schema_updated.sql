@@ -108,6 +108,8 @@ CREATE TABLE public.sold_products (
   product_id UUID                     REFERENCES public.products(id) ON DELETE SET NULL,
   quantity   INTEGER                  NOT NULL DEFAULT 1 CHECK (quantity > 0),
   unit_price NUMERIC                  NOT NULL CHECK (unit_price >= 0),
+  status     TEXT                     NOT NULL DEFAULT 'active'
+                                        CHECK (status IN ('active', 'refunded')),
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
@@ -129,6 +131,7 @@ CREATE INDEX idx_carts_status                     ON public.carts(status);
 
 CREATE INDEX idx_sold_products_cart_id            ON public.sold_products(cart_id);
 CREATE INDEX idx_sold_products_product_id         ON public.sold_products(product_id);
+CREATE INDEX idx_sold_products_status             ON public.sold_products(status);
 
 
 -- =============================================================================
@@ -188,46 +191,78 @@ CREATE TRIGGER trg_sold_products_updated_at
 
 
 -- =============================================================================
--- TRIGGER FUNCTION: stock management
---   Decrements stock on INSERT into sold_products.
---   Restores  stock on DELETE from sold_products (returns / cart deletion).
---   Adjusts   stock on UPDATE  (quantity change).
+-- TRIGGER FUNCTION: stock management (driven by cart status transitions)
+--
+--   pending    → completed : DEDUCT  stock for all active sold_products
+--   pending    → cancelled : DELETE  sold_products (stock was never deducted)
+--   completed  → cancelled : RESTORE stock, then DELETE sold_products
+--   completed  → refunded  : RESTORE stock, mark sold_products as 'refunded'
+--
+--   Stock is intentionally NOT touched on sold_products INSERT/DELETE so that
+--   building / editing a pending cart never affects inventory.
 -- =============================================================================
 
-CREATE OR REPLACE FUNCTION public.manage_product_stock()
+CREATE OR REPLACE FUNCTION public.manage_stock_on_cart_status_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF TG_OP = 'INSERT' THEN
-    UPDATE public.products
-       SET stock = stock - NEW.quantity
-     WHERE id = NEW.product_id;
-
-  ELSIF TG_OP = 'DELETE' THEN
-    IF OLD.product_id IS NOT NULL THEN
-      UPDATE public.products
-         SET stock = stock + OLD.quantity
-       WHERE id = OLD.product_id;
-    END IF;
-
-  ELSIF TG_OP = 'UPDATE' THEN
-    IF NEW.product_id IS NOT NULL THEN
-      UPDATE public.products
-         SET stock = stock - (NEW.quantity - OLD.quantity)
-       WHERE id = NEW.product_id;
-    END IF;
+  -- Only act when status actually changes
+  IF OLD.status = NEW.status THEN
+    RETURN NEW;
   END IF;
 
-  RETURN NULL;
+  -- pending → completed : deduct stock
+  IF OLD.status = 'pending' AND NEW.status = 'completed' THEN
+    UPDATE public.products p
+       SET stock = stock - sp.quantity
+      FROM public.sold_products sp
+     WHERE sp.cart_id   = NEW.id
+       AND sp.product_id = p.id
+       AND sp.status     = 'active';
+
+  -- pending → cancelled : delete line items (stock was never deducted)
+  ELSIF OLD.status = 'pending' AND NEW.status = 'cancelled' THEN
+    DELETE FROM public.sold_products
+     WHERE cart_id = NEW.id;
+
+  -- completed → cancelled : restore stock, then delete line items
+  ELSIF OLD.status = 'completed' AND NEW.status = 'cancelled' THEN
+    UPDATE public.products p
+       SET stock = stock + sp.quantity
+      FROM public.sold_products sp
+     WHERE sp.cart_id   = NEW.id
+       AND sp.product_id = p.id
+       AND sp.status     = 'active';
+
+    DELETE FROM public.sold_products
+     WHERE cart_id = NEW.id;
+
+  -- completed → refunded : restore stock, mark items as refunded
+  ELSIF OLD.status = 'completed' AND NEW.status = 'refunded' THEN
+    UPDATE public.products p
+       SET stock = stock + sp.quantity
+      FROM public.sold_products sp
+     WHERE sp.cart_id   = NEW.id
+       AND sp.product_id = p.id
+       AND sp.status     = 'active';
+
+    UPDATE public.sold_products
+       SET status = 'refunded'
+     WHERE cart_id = NEW.id
+       AND status  = 'active';
+
+  END IF;
+
+  RETURN NEW;
 END;
 $$;
 
-CREATE TRIGGER trg_manage_product_stock
-  AFTER INSERT OR UPDATE OR DELETE ON public.sold_products
-  FOR EACH ROW EXECUTE FUNCTION public.manage_product_stock();
+CREATE TRIGGER trg_manage_stock_on_cart_status_change
+  AFTER UPDATE OF status ON public.carts
+  FOR EACH ROW EXECUTE FUNCTION public.manage_stock_on_cart_status_change();
 
 
 -- =============================================================================
@@ -255,6 +290,7 @@ BEGIN
            SELECT SUM(quantity * unit_price)
              FROM public.sold_products
             WHERE cart_id = v_cart_id
+              AND status  = 'active'
          ), 0)
    WHERE id = v_cart_id;
 
