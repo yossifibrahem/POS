@@ -25,6 +25,7 @@ interface Product {
   category_id: string | null;
   created_at: string;
   categories?: { name: string } | null;
+  attributes?: Record<string, string | number | boolean>;
 }
 
 interface CartItem {
@@ -214,7 +215,22 @@ export default function NewSale() {
                 <CardHeader>
                   <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
                 </CardHeader>
-                <CardContent className="p-3">
+                <CardContent className="p-3 space-y-2">
+                  {/* Attributes preview */}
+                  {p.attributes && Object.keys(p.attributes).length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {Object.entries(p.attributes).slice(0, 3).map(([key, value]) => (
+                        <Badge key={key} variant="outline" className="text-xs font-normal">
+                          {key}: {String(value)}
+                        </Badge>
+                      ))}
+                      {Object.keys(p.attributes).length > 3 && (
+                        <Badge variant="outline" className="text-xs font-normal">
+                          +{Object.keys(p.attributes).length - 3} more
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold">{formatCurrency(p.price)}</span>

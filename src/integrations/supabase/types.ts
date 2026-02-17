@@ -97,6 +97,56 @@ export type Database = {
         }
         Relationships: []
       }
+      category_attributes: {
+        Row: {
+          id: string
+          category_id: string
+          name: string
+          label: string
+          attribute_type: string
+          unit: string | null
+          options: Json | null
+          is_required: boolean
+          display_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          category_id: string
+          name: string
+          label: string
+          attribute_type: string
+          unit?: string | null
+          options?: Json | null
+          is_required?: boolean
+          display_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          category_id?: string
+          name?: string
+          label?: string
+          attribute_type?: string
+          unit?: string | null
+          options?: Json | null
+          is_required?: boolean
+          display_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_attributes_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string
@@ -130,6 +180,7 @@ export type Database = {
           name: string
           price: number
           stock: number
+          attributes: Json
         }
         Insert: {
           category_id?: string | null
@@ -139,6 +190,7 @@ export type Database = {
           name: string
           price?: number
           stock?: number
+          attributes?: Json
         }
         Update: {
           category_id?: string | null
@@ -148,6 +200,7 @@ export type Database = {
           name?: string
           price?: number
           stock?: number
+          attributes?: Json
         }
         Relationships: [
           {

@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
@@ -25,11 +27,26 @@ interface Product {
   category_id: string | null;
   created_at: string;
   categories?: { name: string } | null;
+  attributes?: Record<string, string | number | boolean>;
 }
 
 interface Category {
   id: string;
   name: string;
+}
+
+type AttributeType = 'text' | 'number' | 'boolean' | 'enum';
+
+interface CategoryAttribute {
+  id: string;
+  category_id: string;
+  name: string;
+  label: string;
+  attribute_type: AttributeType;
+  unit?: string;
+  options?: string[];
+  is_required: boolean;
+  display_order: number;
 }
 
 export default function Products() {
@@ -45,11 +62,15 @@ export default function Products() {
   const [saving, setSaving] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  
+  // Attribute management state
+  const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>([]);
+  const [productAttributes, setProductAttributes] = useState<Record<string, string | number | boolean>>({});
 
   const load = async () => {
     await withLoading(setLoading, async () => {
       const { data } = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
-      setProducts(data || []);
+      setProducts((data || []) as Product[]);
       const { data: cats } = await supabase.from("categories").select("*").order("name");
       setCategories(cats || []);
     });
@@ -60,13 +81,115 @@ export default function Products() {
   const openCreate = () => {
     setEditing(null);
     setForm({ name: "", price: "", cost: "", stock: "", category_id: "" });
+    setCategoryAttributes([]);
+    setProductAttributes({});
     setDialogOpen(true);
   };
 
-  const openEdit = (p: Product) => {
+  const openEdit = async (p: Product) => {
     setEditing(p);
     setForm({ name: p.name, price: String(p.price), cost: String(p.cost), stock: String(p.stock), category_id: p.category_id || "" });
+    if (p.category_id) {
+      await loadCategoryAttributes(p.category_id);
+    }
+    setProductAttributes(p.attributes || {});
     setDialogOpen(true);
+  };
+
+  const loadCategoryAttributes = async (categoryId: string) => {
+    const { data, error } = await supabase
+      .from("category_attributes")
+      .select("*")
+      .eq("category_id", categoryId)
+      .order("display_order");
+    
+    if (error) {
+      handleError(error, "Failed to load category attributes");
+      setCategoryAttributes([]);
+    } else {
+      setCategoryAttributes((data || []) as CategoryAttribute[]);
+    }
+  };
+
+  const handleCategoryChange = async (categoryId: string) => {
+    const actualCategoryId = categoryId === "none" ? "" : categoryId;
+    setForm({ ...form, category_id: actualCategoryId });
+    if (actualCategoryId) {
+      await loadCategoryAttributes(actualCategoryId);
+      // Reset product attributes when category changes
+      setProductAttributes({});
+    } else {
+      setCategoryAttributes([]);
+      setProductAttributes({});
+    }
+  };
+
+  const handleAttributeChange = (name: string, value: string | number | boolean) => {
+    setProductAttributes(prev => ({ ...prev, [name]: value }));
+  };
+
+  const getAttributeInput = (attr: CategoryAttribute) => {
+    const value = productAttributes[attr.name];
+
+    switch (attr.attribute_type) {
+      case 'text':
+        return (
+          <Input
+            value={String(value || "")}
+            onChange={(e) => handleAttributeChange(attr.name, e.target.value)}
+            placeholder={`Enter ${attr.label.toLowerCase()}`}
+          />
+        );
+      
+      case 'number':
+        return (
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              value={String(value || "")}
+              onChange={(e) => handleAttributeChange(attr.name, parseFloat(e.target.value) || 0)}
+              placeholder={`Enter ${attr.label.toLowerCase()}`}
+            />
+            {attr.unit && <span className="text-sm text-muted-foreground whitespace-nowrap">{attr.unit}</span>}
+          </div>
+        );
+      
+      case 'boolean':
+        return (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`attr-${attr.name}`}
+              checked={Boolean(value)}
+              onCheckedChange={(checked) => handleAttributeChange(attr.name, checked as boolean)}
+            />
+            <Label htmlFor={`attr-${attr.name}`} className="cursor-pointer">
+              {value ? "Yes" : "No"}
+            </Label>
+          </div>
+        );
+      
+      case 'enum':
+        return (
+          <Select
+            value={String(value || "")}
+            onValueChange={(v) => handleAttributeChange(attr.name, v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={`Select ${attr.label.toLowerCase()}`} />
+            </SelectTrigger>
+            <SelectContent>
+              {attr.options?.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}{attr.unit ? ` ${attr.unit}` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      
+      default:
+        return null;
+    }
   };
 
   const openDetail = (p: Product) => {
@@ -80,6 +203,14 @@ export default function Products() {
       [Number(form.price), Number(form.cost), Number(form.stock)],
       ["Price", "Cost", "Stock"]
     )) return;
+
+    // Validate required attributes
+    for (const attr of categoryAttributes) {
+      if (attr.is_required && !productAttributes[attr.name]) {
+        toast.error(`${attr.label} is required`);
+        return;
+      }
+    }
     
     setSaving(true);
 
@@ -89,6 +220,7 @@ export default function Products() {
       cost: Number(form.cost) || 0,
       stock: parseInt(form.stock) || 0,
       category_id: form.category_id || null,
+      attributes: productAttributes,
     };
 
     if (editing) {
@@ -175,24 +307,51 @@ export default function Products() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Product" : "Add Product"}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Price</Label><Input type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Cost</Label><Input type="number" min="0" step="0.01" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Stock</Label><Input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} /></div>
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
+          <div className="space-y-6">
+            {/* Basic Info */}
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Price</Label><Input type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Cost</Label><Input type="number" min="0" step="0.01" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Stock</Label><Input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} /></div>
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select value={form.category_id || "none"} onValueChange={handleCategoryChange}>
+                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
+
+            {/* Dynamic Attributes Section */}
+            {categoryAttributes.length > 0 && (
+              <>
+                <Separator />
+                <div className="space-y-4">
+                  <h4 className="font-medium">Category Attributes</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    {categoryAttributes.map((attr) => (
+                      <div key={attr.name} className="space-y-2">
+                        <Label className="flex items-center gap-1">
+                          {attr.label}
+                          {attr.is_required && <span className="text-destructive">*</span>}
+                        </Label>
+                        {getAttributeInput(attr)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>

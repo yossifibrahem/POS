@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/formatters";
-import { Package, Tag, DollarSign, Coins, Box, Calendar, ShoppingCart, Pencil } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Package, Tag, DollarSign, Coins, Box, Calendar, ShoppingCart, Pencil, Check, X, List } from "lucide-react";
 
 interface Product {
   id: string;
@@ -14,6 +16,21 @@ interface Product {
   category_id: string | null;
   created_at: string;
   categories?: { name: string } | null;
+  attributes?: Record<string, string | number | boolean>;
+}
+
+type AttributeType = 'text' | 'number' | 'boolean' | 'enum';
+
+interface CategoryAttribute {
+  id: string;
+  category_id: string;
+  name: string;
+  label: string;
+  attribute_type: AttributeType;
+  unit?: string;
+  options?: string[];
+  is_required: boolean;
+  display_order: number;
 }
 
 interface ProductDetailModalProps {
@@ -33,6 +50,43 @@ export function ProductDetailModal({
   onEdit,
   onAddToCart,
 }: ProductDetailModalProps) {
+  const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>([]);
+
+  useEffect(() => {
+    if (product?.category_id) {
+      loadCategoryAttributes(product.category_id);
+    } else {
+      setCategoryAttributes([]);
+    }
+  }, [product?.category_id]);
+
+  const loadCategoryAttributes = async (categoryId: string) => {
+    const { data } = await supabase
+      .from("category_attributes")
+      .select("*")
+      .eq("category_id", categoryId)
+      .order("display_order");
+    
+    setCategoryAttributes((data || []) as CategoryAttribute[]);
+  };
+
+  const formatAttributeValue = (attr: CategoryAttribute, value: string | number | boolean | undefined) => {
+    if (value === undefined || value === null) return "—";
+    
+    switch (attr.attribute_type) {
+      case 'boolean':
+        return value ? (
+          <span className="flex items-center gap-1 text-green-600"><Check className="h-4 w-4" /> Yes</span>
+        ) : (
+          <span className="flex items-center gap-1 text-gray-500"><X className="h-4 w-4" /> No</span>
+        );
+      case 'number':
+        return attr.unit ? `${value} ${attr.unit}` : String(value);
+      default:
+        return attr.unit ? `${value} ${attr.unit}` : String(value);
+    }
+  };
+
   if (!product) return null;
 
   const stockBadge = () => {
@@ -131,6 +185,26 @@ export function ProductDetailModal({
           </div>
 
           <Separator />
+
+          {/* Attributes Section */}
+          {categoryAttributes.length > 0 && (
+            <div className="space-y-4">
+                <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <List className="h-4 w-4" />
+                  Specifications
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {categoryAttributes.map((attr) => (
+                    <div key={attr.name} className="space-y-1">
+                      <div className="text-xs text-muted-foreground">{attr.label}</div>
+                      <div className="font-medium">
+                        {formatAttributeValue(attr, product.attributes?.[attr.name])}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+            </div>
+          )}
 
           {/* Additional Info */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
