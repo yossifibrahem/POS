@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Json } from "@/integrations/supabase/types";
+import { updateCartStatusIfAllRefunded } from "@/lib/cart";
 
 type CartRow = { 
   id: string; 
@@ -44,9 +45,10 @@ interface CartDetailModalProps {
   cartId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onRefund?: () => void;
 }
 
-export function CartDetailModal({ cartId, open, onOpenChange }: CartDetailModalProps) {
+export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDetailModalProps) {
   const [cart, setCart] = useState<CartRow | null>(null);
   const [items, setItems] = useState<SoldItemRow[]>([]);
   const [returningId, setReturningId] = useState<string | null>(null);
@@ -94,6 +96,14 @@ export function CartDetailModal({ cartId, open, onOpenChange }: CartDetailModalP
         .eq("status", "active");
 
       if (updateError) throw updateError;
+
+      // Check if all products are now fully refunded and update cart status
+      if (cartId) {
+        await updateCartStatusIfAllRefunded(cartId);
+        if (onRefund) {
+          onRefund();
+        }
+      }
 
       // Database trigger will recalculate cart total
       setReturnQty((prev) => {

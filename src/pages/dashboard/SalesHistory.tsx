@@ -19,6 +19,7 @@ import {
 import { Trash2 } from "lucide-react";
 import { withLoading, handleError, handleSuccess } from "@/lib/api";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { updateCartStatusIfAllRefunded } from "@/lib/cart";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 
 interface Cart {
@@ -63,15 +64,7 @@ export default function SalesHistory() {
     if (!deleteCartId) return;
     setProcessing(true);
     try {
-      // Step 1: Mark cart as refunded
-      const { error: updateCartError } = await supabase
-        .from("carts")
-        .update({ status: "refunded" })
-        .eq("id", deleteCartId);
-      
-      if (updateCartError) throw updateCartError;
-
-      // Step 2: Get all active sold_products for this cart
+      // Step 1: Get all active sold_products for this cart
       const { data: soldProducts, error: fetchError } = await supabase
         .from("sold_products")
         .select("id, quantity, refunded_quantity")
@@ -80,7 +73,7 @@ export default function SalesHistory() {
       
       if (fetchError) throw fetchError;
 
-      // Step 3: Full refund each active item (set refunded_quantity = quantity)
+      // Step 2: Full refund each active item (set refunded_quantity = quantity)
       // DB trigger will:
       // - Restock each row (quantity - old_refunded_quantity units)
       // - Auto-set status = 'refunded' when refunded_quantity = quantity
@@ -99,6 +92,9 @@ export default function SalesHistory() {
           if (updateSoldError) throw updateSoldError;
         }
       }
+
+      // Step 3: Check if all products are now fully refunded and update cart status
+      await updateCartStatusIfAllRefunded(deleteCartId);
 
       handleSuccess("Cart refunded successfully. Stock has been restored.");
       setDeleteCartId(null);
@@ -246,6 +242,7 @@ export default function SalesHistory() {
         cartId={selectedCartId}
         open={modalOpen}
         onOpenChange={setModalOpen}
+        onRefund={load}
       />
     </div>
   );
