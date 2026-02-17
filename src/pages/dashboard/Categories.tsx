@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, GripVertical, Search } from "lucide-react";
 import { withLoading, handleError, handleSuccess, validateRequired } from "@/lib/api";
 import { formatDate } from "@/lib/formatters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
@@ -72,6 +72,7 @@ export default function Categories() {
   const [attributeOptionsInput, setAttributeOptionsInput] = useState("");
   const [savingAttribute, setSavingAttribute] = useState(false);
   const [deleteAttributeId, setDeleteAttributeId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const load = async () => {
     await withLoading(setLoading, async () => {
@@ -276,12 +277,19 @@ export default function Categories() {
         <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Add Category</Button>
       </div>
 
+      <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search categories..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? (
           <LoadingGrid count={6} columns={3} />
-        ) : categories.length > 0 ? (
-          categories.map((c) => (
+        ) : categories.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())).length > 0 ? (
+          categories.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())).map((c) => (
             <Card key={c.id}>
               <CardHeader>
                 <CardTitle className="text-sm font-medium">{c.name}</CardTitle>
@@ -297,7 +305,7 @@ export default function Categories() {
             </Card>
           ))
         ) : (
-          <EmptyState message="No categories yet" />
+          <EmptyState message={search ? "No categories found" : "No categories yet"} />
         )}
         </div>
       </div>
