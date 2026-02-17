@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -38,7 +38,7 @@ export default function SalesHistory() {
   const [deleteCartId, setDeleteCartId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
       let query = supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity)").order("created_at", { ascending: false });
       if (dateFrom) query = query.gte("created_at", dateFrom);
@@ -46,9 +46,9 @@ export default function SalesHistory() {
       const { data } = await query;
       setCarts(data || []);
     });
-  };
+  }, [dateFrom, dateTo]);
 
-  useEffect(() => { load(); }, [dateFrom, dateTo]);
+  useEffect(() => { load(); }, [load]);
 
   const handleDeleteCart = async () => {
     if (!deleteCartId) return;
