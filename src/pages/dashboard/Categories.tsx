@@ -16,6 +16,7 @@ import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, GripVertical, Search } fr
 import { withLoading, handleError, handleSuccess, validateRequired } from "@/lib/api";
 import { formatDate } from "@/lib/formatters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
+import { CategoryAttributeForm } from "@/components/CategoryAttributeForm";
 import type { Category, CategoryAttribute, AttributeType } from "@/types/category";
 import { parseOptions, getAttributeTypeBadgeClass } from "@/lib/attributes";
 
@@ -32,17 +33,6 @@ export default function Categories() {
   const [attributes, setAttributes] = useState<CategoryAttribute[]>([]);
   const [attributesExpanded, setAttributesExpanded] = useState(false);
   const [editingAttribute, setEditingAttribute] = useState<CategoryAttribute | null>(null);
-  const [attributeForm, setAttributeForm] = useState<Partial<CategoryAttribute>>({
-    name: "",
-    label: "",
-    attribute_type: "text",
-    unit: "",
-    options: [],
-    is_required: false,
-    display_order: 0,
-  });
-  const [attributeOptionsInput, setAttributeOptionsInput] = useState("");
-  const [savingAttribute, setSavingAttribute] = useState(false);
   const [deleteAttributeId, setDeleteAttributeId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -95,69 +85,28 @@ export default function Categories() {
     }
   };
 
-  const resetAttributeForm = () => {
-    setEditingAttribute(null);
-    setAttributeForm({
-      name: "",
-      label: "",
-      attribute_type: "text",
-      unit: "",
-      options: [],
-      is_required: false,
-      display_order: attributes.length,
-    });
-    setAttributeOptionsInput("");
-  };
-
   const openAddAttribute = () => {
-    resetAttributeForm();
+    setEditingAttribute(null);
     setAttributesExpanded(true);
   };
 
   const openEditAttribute = (attr: CategoryAttribute) => {
     setEditingAttribute(attr);
-    setAttributeForm({
-      name: attr.name,
-      label: attr.label,
-      attribute_type: attr.attribute_type,
-      unit: attr.unit || "",
-      options: attr.options || [],
-      is_required: attr.is_required,
-      display_order: attr.display_order,
-    });
-    setAttributeOptionsInput(parseOptions(attr.options).join(", ") || "");
     setAttributesExpanded(true);
   };
 
-  const handleSaveAttribute = async () => {
+  const handleSaveAttribute = async (formData: Partial<CategoryAttribute>) => {
     if (!editing) return;
-    if (!validateRequired(attributeForm.name, "Attribute name")) return;
-    if (!validateRequired(attributeForm.label, "Attribute label")) return;
     
-    // Validate name format (lowercase_snake_case)
-    if (!/^[a-z][a-z0-9_]*$/.test(attributeForm.name || "")) {
-      toast.error("Name must be lowercase with underscores (e.g., 'screen_size')");
-      return;
-    }
-
-    // Validate enum has options
-    const optionsArray = parseOptions(attributeForm.options);
-    if (attributeForm.attribute_type === "enum" && optionsArray.length === 0) {
-      toast.error("Enum type requires at least one option");
-      return;
-    }
-
-    setSavingAttribute(true);
-
     const payload: CategoryAttribute = {
       category_id: editing.id,
-      name: attributeForm.name!,
-      label: attributeForm.label!,
-      attribute_type: attributeForm.attribute_type as AttributeType,
-      unit: attributeForm.unit || null,
-      options: attributeForm.attribute_type === "enum" ? attributeForm.options : null,
-      is_required: attributeForm.is_required || false,
-      display_order: attributeForm.display_order || attributes.length,
+      name: formData.name!,
+      label: formData.label!,
+      attribute_type: formData.attribute_type as AttributeType,
+      unit: formData.unit || null,
+      options: formData.attribute_type === "enum" ? formData.options : null,
+      is_required: formData.is_required || false,
+      display_order: formData.display_order ?? attributes.length,
     };
 
     if (editingAttribute?.id) {
@@ -171,7 +120,7 @@ export default function Categories() {
       } else {
         handleSuccess("Attribute updated");
         await loadAttributes(editing.id);
-        resetAttributeForm();
+        setEditingAttribute(null);
       }
     } else {
       const { error } = await supabase
@@ -183,11 +132,9 @@ export default function Categories() {
       } else {
         handleSuccess("Attribute created");
         await loadAttributes(editing.id);
-        resetAttributeForm();
+        setEditingAttribute(null);
       }
     }
-    
-    setSavingAttribute(false);
   };
 
   const handleDeleteAttribute = async () => {
@@ -207,13 +154,6 @@ export default function Categories() {
     
     setDeleteAttributeId(null);
   };
-
-  const handleOptionsInputChange = (value: string) => {
-    setAttributeOptionsInput(value);
-    const options = value.split(",").map(o => o.trim()).filter(o => o);
-    setAttributeForm(prev => ({ ...prev, options }));
-  };
-
 
   const handleSave = async () => {
     if (!validateRequired(name, "Name")) return;
@@ -339,93 +279,13 @@ export default function Categories() {
                     )}
 
                     {/* Add/Edit Attribute Form */}
-                    <div className="space-y-4 p-4 border rounded-md">
-                      <h4 className="font-medium">
-                        {editingAttribute ? "Edit Attribute" : "Add New Attribute"}
-                      </h4>
-                      
-                      <div className="space-y-2">
-                        <Label>Label (display name)</Label>
-                        <Input 
-                          value={attributeForm.label} 
-                          onChange={(e) => {
-                            const label = e.target.value;
-                            const name = label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-                            setAttributeForm({ ...attributeForm, label, name });
-                          }}
-                          placeholder="e.g., Screen Size"
-                        />
-                        <p className="text-xs text-muted-foreground">Key: {attributeForm.name || 'auto-generated from label'}</p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Type</Label>
-                          <Select 
-                            value={attributeForm.attribute_type} 
-                            onValueChange={(v: AttributeType) => setAttributeForm({ ...attributeForm, attribute_type: v })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="text">Text</SelectItem>
-                              <SelectItem value="number">Number</SelectItem>
-                              <SelectItem value="boolean">Boolean</SelectItem>
-                              <SelectItem value="enum">Enum (Dropdown)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Unit (optional)</Label>
-                          <Input 
-                            value={attributeForm.unit} 
-                            onChange={(e) => setAttributeForm({ ...attributeForm, unit: e.target.value })}
-                            placeholder="e.g., GB, inch"
-                          />
-                        </div>
-                      </div>
-
-                      {attributeForm.attribute_type === "enum" && (
-                        <div className="space-y-2">
-                          <Label>Options (comma-separated)</Label>
-                          <Input 
-                            value={attributeOptionsInput} 
-                            onChange={(e) => handleOptionsInputChange(e.target.value)}
-                            placeholder="e.g., 4, 8, 16, 32"
-                          />
-                          <p className="text-xs text-muted-foreground">Enter values separated by commas</p>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-2">
-                        <Checkbox 
-                          id="required"
-                          checked={attributeForm.is_required} 
-                          onCheckedChange={(checked) => setAttributeForm({ ...attributeForm, is_required: checked as boolean })}
-                        />
-                        <Label htmlFor="required" className="cursor-pointer">Required field</Label>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button 
-                          onClick={handleSaveAttribute} 
-                          disabled={savingAttribute}
-                          size="sm"
-                        >
-                          {savingAttribute ? "Saving..." : (editingAttribute ? "Update" : "Add")}
-                        </Button>
-                        {editingAttribute && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={resetAttributeForm}
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+                    <CategoryAttributeForm
+                      initialData={editingAttribute || undefined}
+                      attributesCount={attributes.length}
+                      onSave={handleSaveAttribute}
+                      onCancel={editingAttribute ? () => setEditingAttribute(null) : undefined}
+                      isEditing={!!editingAttribute}
+                    />
 
                     {attributes.length === 0 && !editingAttribute && (
                       <Button variant="outline" onClick={openAddAttribute} className="w-full">
