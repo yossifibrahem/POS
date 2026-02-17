@@ -255,6 +255,8 @@ export default function NewSale() {
                 <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
               </CardHeader>
               <CardContent className="p-3 space-y-2">
+                {/* Category */}
+                <div className="text-sm text-muted-foreground">{p.categories?.name || "—"}</div>
                 {/* Attributes preview */}
                 {(() => {
                   const attrs = parseAttributes(p.attributes);
