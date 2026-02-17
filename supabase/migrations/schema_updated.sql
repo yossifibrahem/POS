@@ -212,23 +212,10 @@ BEGIN
     END IF;
 
   ELSIF TG_OP = 'UPDATE' THEN
-    IF OLD.product_id IS DISTINCT FROM NEW.product_id THEN
-      IF OLD.product_id IS NOT NULL THEN
-        UPDATE public.products
-           SET stock = stock + OLD.quantity
-         WHERE id = OLD.product_id;
-      END IF;
-      IF NEW.product_id IS NOT NULL THEN
-        UPDATE public.products
-           SET stock = stock - NEW.quantity
-         WHERE id = NEW.product_id;
-      END IF;
-    ELSE
-      IF OLD.product_id IS NOT NULL THEN
-        UPDATE public.products
-           SET stock = stock - (NEW.quantity - OLD.quantity)
-         WHERE id = NEW.product_id;
-      END IF;
+    IF NEW.product_id IS NOT NULL THEN
+      UPDATE public.products
+         SET stock = stock - (NEW.quantity - OLD.quantity)
+       WHERE id = NEW.product_id;
     END IF;
   END IF;
 
@@ -236,15 +223,14 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trg_sold_products_stock
+CREATE TRIGGER trg_manage_product_stock
   AFTER INSERT OR UPDATE OR DELETE ON public.sold_products
   FOR EACH ROW EXECUTE FUNCTION public.manage_product_stock();
 
 
 -- =============================================================================
--- TRIGGER FUNCTION: cart total
---   Recalculates carts.total whenever a sold_products row is inserted,
---   updated, or deleted, keeping the stored total always accurate.
+-- TRIGGER FUNCTION: cart total recalculation
+--   Recalculates cart total whenever sold_products are inserted/updated/deleted.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.recalculate_cart_total()
@@ -277,6 +263,35 @@ $$;
 CREATE TRIGGER trg_recalculate_cart_total
   AFTER INSERT OR UPDATE OR DELETE ON public.sold_products
   FOR EACH ROW EXECUTE FUNCTION public.recalculate_cart_total();
+
+
+-- =============================================================================
+-- TRIGGER FUNCTION: clear product attributes when category is deleted
+--   When a category is deleted, category_id becomes NULL (ON DELETE SET NULL).
+--   This trigger clears the attributes JSONB column when that happens.
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.clear_product_attributes_on_category_delete()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- When category_id changes from a value to NULL, clear attributes
+  IF OLD.category_id IS NOT NULL AND NEW.category_id IS NULL THEN
+    NEW.attributes = '{}'::JSONB;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_clear_product_attributes_on_category_delete
+  BEFORE UPDATE ON public.products
+  FOR EACH ROW
+  WHEN (OLD.category_id IS DISTINCT FROM NEW.category_id)
+  EXECUTE FUNCTION public.clear_product_attributes_on_category_delete();
 
 
 -- =============================================================================
