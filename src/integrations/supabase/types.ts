@@ -44,6 +44,7 @@ export type Database = {
           id: string
           notes: string | null
           processed_by: string
+          status: string
           total: number
         }
         Insert: {
@@ -52,6 +53,7 @@ export type Database = {
           id?: string
           notes?: string | null
           processed_by: string
+          status?: string
           total?: number
         }
         Update: {
@@ -60,6 +62,7 @@ export type Database = {
           id?: string
           notes?: string | null
           processed_by?: string
+          status?: string
           total?: number
         }
         Relationships: [

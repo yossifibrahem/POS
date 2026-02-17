@@ -24,6 +24,7 @@ interface Cart {
   id: string;
   total: number;
   created_at: string;
+  status?: string;
   customers?: { full_name?: string };
   admins?: { customers?: { full_name?: string } };
   sold_products?: { quantity: number }[];
@@ -40,7 +41,7 @@ export default function SalesHistory() {
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
-      let query = supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity)").order("created_at", { ascending: false });
+      let query = supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity)").eq("status", "completed").order("created_at", { ascending: false });
       if (dateFrom) query = query.gte("created_at", dateFrom);
       if (dateTo) query = query.lte("created_at", dateTo + "T23:59:59");
       const { data } = await query;
@@ -50,7 +51,7 @@ export default function SalesHistory() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDeleteCart = async () => {
+  const handleRefundCart = async () => {
     if (!deleteCartId) return;
     setProcessing(true);
     try {
@@ -62,19 +63,19 @@ export default function SalesHistory() {
       
       if (deleteSoldError) throw deleteSoldError;
 
-      // Delete the cart
-      const { error: deleteCartError } = await supabase
+      // Mark cart as refunded instead of deleting
+      const { error: updateCartError } = await supabase
         .from("carts")
-        .delete()
+        .update({ status: "refunded" })
         .eq("id", deleteCartId);
       
-      if (deleteCartError) throw deleteCartError;
+      if (updateCartError) throw updateCartError;
 
-      handleSuccess("Cart deleted successfully. Stock has been restored.");
+      handleSuccess("Cart refunded successfully. Stock has been restored.");
       setDeleteCartId(null);
       load(); // Refresh the list
     } catch (e: unknown) {
-      handleError(e, "Delete failed");
+      handleError(e, "Refund failed");
     } finally {
       setProcessing(false);
     }
@@ -124,7 +125,7 @@ export default function SalesHistory() {
                       setDeleteCartId(c.id);
                     }}
                   >
-                    <Trash2 className="h-4 w-4" /> Delete
+                    <Trash2 className="h-4 w-4" /> Refund
                   </Button>
                 </div>
               </CardContent>
@@ -138,19 +139,19 @@ export default function SalesHistory() {
       <AlertDialog open={!!deleteCartId} onOpenChange={(open) => !open && setDeleteCartId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this cart?</AlertDialogTitle>
+            <AlertDialogTitle>Refund this sale?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will return all products to stock and permanently delete the cart and all its items. This action cannot be undone.
+              This will return all products to stock and mark the cart as refunded. The cart will be preserved for record-keeping purposes. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={processing}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteCart}
+              onClick={handleRefundCart}
               disabled={processing}
               className="bg-red-500 hover:bg-red-600"
             >
-              {processing ? "Deleting..." : "Delete"}
+              {processing ? "Processing..." : "Refund"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

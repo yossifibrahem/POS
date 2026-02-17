@@ -135,6 +135,7 @@ export default function NewSale() {
       customer_id: customerId,
       processed_by: user.id,
       notes: notes || null,
+      status: "completed",
     }).select().single();
 
     if (cartError) { toast.error(cartError.message); setProcessing(false); return; }
