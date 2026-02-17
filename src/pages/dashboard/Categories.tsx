@@ -73,6 +73,7 @@ export default function Categories() {
   const [savingAttribute, setSavingAttribute] = useState(false);
   const [deleteAttributeId, setDeleteAttributeId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<{ field: "name" | "created_at"; direction: "asc" | "desc" }>({ field: "created_at", direction: "desc" });
 
   const load = async () => {
     await withLoading(setLoading, async () => {
@@ -282,14 +283,45 @@ export default function Categories() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search categories..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <Select 
+          value={`${sort.field}-${sort.direction}`} 
+          onValueChange={(value) => {
+            const [field, direction] = value.split("-") as ["name" | "created_at", "asc" | "desc"];
+            setSort({ field, direction });
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Sort by..." /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+            <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+            <SelectItem value="created_at-desc">Newest First</SelectItem>
+            <SelectItem value="created_at-asc">Oldest First</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? (
           <LoadingGrid count={6} columns={3} />
-        ) : categories.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())).length > 0 ? (
-          categories.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())).map((c) => (
+        ) : [...categories]
+            .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+            .sort((a, b) => {
+              const multiplier = sort.direction === "asc" ? 1 : -1;
+              if (sort.field === "name") {
+                return a.name.localeCompare(b.name) * multiplier;
+              }
+              return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * multiplier;
+            }).length > 0 ? (
+          [...categories]
+            .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+            .sort((a, b) => {
+              const multiplier = sort.direction === "asc" ? 1 : -1;
+              if (sort.field === "name") {
+                return a.name.localeCompare(b.name) * multiplier;
+              }
+              return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * multiplier;
+            }).map((c) => (
             <Card key={c.id}>
               <CardHeader>
                 <CardTitle className="text-sm font-medium">{c.name}</CardTitle>
