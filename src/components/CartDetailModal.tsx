@@ -61,6 +61,14 @@ export function CartDetailModal({ cartId, open, onOpenChange }: CartDetailModalP
   }, [cartId]);
 
   useEffect(() => {
+    if (!open || !cartId) {
+      setCart(null);
+      setItems([]);
+      setReturnQty({});
+    }
+  }, [open, cartId]);
+
+  useEffect(() => {
     if (open && cartId) {
       loadData();
     }
