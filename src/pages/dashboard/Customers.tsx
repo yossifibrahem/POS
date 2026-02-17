@@ -10,6 +10,7 @@ import { withLoading, handleError, handleSuccess } from "@/lib/api";
 import { formatDate } from "@/lib/formatters";
 import { filterCustomers } from "@/lib/filters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
+import { CustomerDetailModal } from "@/components/CustomerDetailModal";
 
 interface Customer {
   id: string;
@@ -27,6 +28,8 @@ export default function Customers() {
   const [search, setSearch] = useState("");
   const [promoteTarget, setPromoteTarget] = useState<Customer | null>(null);
   const [demoteTarget, setDemoteTarget] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const load = async () => {
     await withLoading(setLoading, async () => {
@@ -75,7 +78,11 @@ export default function Customers() {
           <LoadingGrid count={6} columns={3} />
         ) : filtered.length > 0 ? (
           filtered.map((c) => (
-            <Card key={c.id}>
+            <Card 
+              key={c.id} 
+              className="cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => { setSelectedCustomer(c); setModalOpen(true); }}
+            >
               <CardHeader>
                 <CardTitle className="text-sm font-medium">{c.full_name}</CardTitle>
               </CardHeader>
@@ -91,11 +98,11 @@ export default function Customers() {
                 </div>
                 <div className="flex justify-end">
                   {c.is_admin ? (
-                    <Button variant="ghost" size="icon" title="Demote" onClick={() => setDemoteTarget(c)}>
+                    <Button variant="ghost" size="icon" title="Demote" onClick={(e) => { e.stopPropagation(); setDemoteTarget(c); }}>
                       <ShieldOff className="h-4 w-4" />
                     </Button>
                   ) : (
-                    <Button variant="ghost" size="icon" title="Promote to Admin" onClick={() => setPromoteTarget(c)}>
+                    <Button variant="ghost" size="icon" title="Promote to Admin" onClick={(e) => { e.stopPropagation(); setPromoteTarget(c); }}>
                       <Shield className="h-4 w-4" />
                     </Button>
                   )}
@@ -134,6 +141,12 @@ export default function Customers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CustomerDetailModal
+        customer={selectedCustomer}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+      />
     </div>
   );
 }
