@@ -10,6 +10,15 @@ import { StatCardSkeleton, LoadingGrid } from "@/components/LoadingGrid";
 import { CartDetailModal } from "@/components/CartDetailModal";
 
 /**
+ * Get today's date in YYYY-MM-DD format using local timezone
+ * This ensures correct date for daily stats regardless of UTC offset
+ */
+function getLocalDateString(): string {
+  const now = new Date();
+  return now.toLocaleDateString('en-CA', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+}
+
+/**
  * Format a date to relative time (e.g., "2 hours ago", "Just now")
  */
 function formatRelativeTime(date: string | Date): string {
@@ -51,7 +60,7 @@ export default function Overview() {
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalDateString();
 
     Promise.all([
       supabase.from("products").select("id", { count: "exact", head: true }),
@@ -296,7 +305,7 @@ export default function Overview() {
         onOpenChange={setModalOpen}
         onRefund={() => {
           // Refresh the data after refund
-          const today = new Date().toISOString().split("T")[0];
+          const today = getLocalDateString();
           Promise.all([
             supabase.from("products").select("id", { count: "exact", head: true }),
             supabase.from("categories").select("id", { count: "exact", head: true }),
