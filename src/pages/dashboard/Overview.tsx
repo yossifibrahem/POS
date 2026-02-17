@@ -56,10 +56,10 @@ export default function Overview() {
   ];
 
   return (
-    <div className="h-full flex flex-col gap-6">
-      <h1 className="text-2xl font-bold shrink-0">Dashboard</h1>
+    <div className="space-y-4">
+      <h1 className="sticky top-[48px] z-10 bg-background py-2 text-2xl font-bold">Dashboard</h1>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 shrink-0">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {loading ? (
           <>
             {[1, 2, 3, 4].map((i) => (
@@ -82,7 +82,7 @@ export default function Overview() {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="pb-6">
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader><CardTitle className="text-base">Recent Sales</CardTitle></CardHeader>

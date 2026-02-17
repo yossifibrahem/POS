@@ -182,7 +182,7 @@ export default function NewSale() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-2">
         <h1 className="text-2xl font-bold">New Sale</h1>
         <Button
           variant="outline"
@@ -201,7 +201,7 @@ export default function NewSale() {
       </div>
 
       {/* Product Picker - full width */}
-      <div className="space-y-3">
+      <div className="sticky top-[96px] z-10 bg-background py-2">
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -234,57 +234,57 @@ export default function NewSale() {
             </Select>
           </div>
         </div>
+      </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-h-[70vh] overflow-y-auto">
-          {loading ? (
-            <LoadingGrid count={6} columns={3} />
-          ) : (
-            filteredProducts.map((p) => (
-              <Card
-                key={p.id}
-                className={`cursor-pointer transition hover:shadow-md ${p.stock === 0 ? "opacity-50" : ""}`}
-                onClick={() => openDetail(p)}
-              >
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 space-y-2">
-                  {/* Attributes preview */}
-                  {(() => {
-                    const attrs = parseAttributes(p.attributes);
-                    const entries = Object.entries(attrs);
-                    if (entries.length === 0) return null;
-                    return (
-                      <div className="flex flex-wrap gap-1">
-                        {entries.slice(0, 3).map(([key, value]) => (
-                          <Badge key={key} variant="outline" className="text-xs font-normal">
-                            {key}: {String(value)}
-                          </Badge>
-                        ))}
-                        {entries.length > 3 && (
-                          <Badge variant="outline" className="text-xs font-normal">
-                            +{entries.length - 3} more
-                          </Badge>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold">{formatCurrency(p.price)}</span>
-                      <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
-                        {p.stock} left
-                      </Badge>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 pb-6">
+        {loading ? (
+          <LoadingGrid count={6} columns={3} />
+        ) : (
+          filteredProducts.map((p) => (
+            <Card
+              key={p.id}
+              className={`cursor-pointer transition hover:shadow-md ${p.stock === 0 ? "opacity-50" : ""}`}
+              onClick={() => openDetail(p)}
+            >
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">{p.name}</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 space-y-2">
+                {/* Attributes preview */}
+                {(() => {
+                  const attrs = parseAttributes(p.attributes);
+                  const entries = Object.entries(attrs);
+                  if (entries.length === 0) return null;
+                  return (
+                    <div className="flex flex-wrap gap-1">
+                      {entries.slice(0, 3).map(([key, value]) => (
+                        <Badge key={key} variant="outline" className="text-xs font-normal">
+                          {key}: {String(value)}
+                        </Badge>
+                      ))}
+                      {entries.length > 3 && (
+                        <Badge variant="outline" className="text-xs font-normal">
+                          +{entries.length - 3} more
+                        </Badge>
+                      )}
                     </div>
-                    <Button size="sm" onClick={(e) => { e.stopPropagation(); if (p.stock > 0) addToCart(p); }} disabled={p.stock === 0}>
-                      Add
-                    </Button>
+                  );
+                })()}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold">{formatCurrency(p.price)}</span>
+                    <Badge variant={p.stock === 0 ? "destructive" : "secondary"} className="text-xs">
+                      {p.stock} left
+                    </Badge>
                   </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
+                  <Button size="sm" onClick={(e) => { e.stopPropagation(); if (p.stock > 0) addToCart(p); }} disabled={p.stock === 0}>
+                    Add
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Cart slide-over from the right */}
