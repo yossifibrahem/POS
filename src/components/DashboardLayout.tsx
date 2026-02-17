@@ -34,7 +34,7 @@ export default function DashboardLayout() {
       <div className="flex min-h-screen w-full flex-col md:flex-row">
         <Sidebar>
           <SidebarHeader className="border-b px-4 py-2">
-            <h2 className="text-lg font-bold tracking-tight">Store Admin</h2>
+            <h2 className="text-lg font-bold tracking-tight">MHG Store</h2>
           </SidebarHeader>
           <SidebarContent>
             <SidebarGroup>
