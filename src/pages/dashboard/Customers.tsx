@@ -62,17 +62,17 @@ export default function Customers() {
   const filtered = filterCustomers(customers, search);
 
   return (
-    <div className="space-y-2">
-      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-1">
+    <div className="p-4 md:p-6">
+      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-2">
         <h1 className="text-2xl font-bold">Customers</h1>
       </div>
 
-      <div className="sticky top-[96px] z-10 relative bg-background py-1">
+      <div className="sticky top-[96px] z-10 relative bg-background py-2">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input placeholder="Search by name or email..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <div className="pb-6">
+      <div className="pt-4 pb-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? (
           <LoadingGrid count={6} columns={3} />

@@ -181,8 +181,8 @@ export default function NewSale() {
   };
 
   return (
-    <div className="space-y-2">
-      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-1">
+    <div className="p-4 md:p-6">
+      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-2">
         <h1 className="text-2xl font-bold">New Sale</h1>
         <Button
           variant="outline"
@@ -200,7 +200,7 @@ export default function NewSale() {
       </div>
 
       {/* Product Picker - full width */}
-      <div className="sticky top-[96px] z-10 bg-background py-1">
+      <div className="sticky top-[96px] z-10 bg-background py-2">
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -235,7 +235,7 @@ export default function NewSale() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 pb-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 pt-4 pb-6">
         {loading ? (
           <LoadingGrid count={6} columns={3} />
         ) : (

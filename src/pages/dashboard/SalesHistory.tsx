@@ -88,10 +88,10 @@ export default function SalesHistory() {
   };
 
   return (
-    <div className="space-y-2">
-      <h1 className="sticky top-[48px] z-10 bg-background py-1 text-2xl font-bold">Sales History</h1>
+    <div className="p-4 md:p-6">
+      <h1 className="sticky top-[48px] z-10 bg-background py-2 text-2xl font-bold">Sales History</h1>
 
-      <div className="sticky top-[96px] z-10 flex gap-4 bg-background py-1 items-end">
+      <div className="sticky top-[96px] z-10 flex gap-4 bg-background py-2 items-end">
         <div className="space-y-1">
           <Label className="text-xs">From</Label>
           <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
@@ -109,7 +109,7 @@ export default function SalesHistory() {
         </div>
       </div>
 
-      <div className="pb-6">
+      <div className="pt-4 pb-6">
         <div className="grid gap-4 grid-cols-1">
           {loading ? (
           <LoadingGrid count={4} columns={1} />

@@ -71,7 +71,7 @@ export default function DashboardLayout() {
   <header className="sticky top-0 z-50 flex h-12 items-center border-b bg-background px-4 shrink-0">
     <SidebarTrigger />
   </header>
-  <div className="flex-1 p-4 md:p-6">
+  <div className="flex-1">
     <Outlet />
   </div>
 </SidebarInset>

@@ -56,10 +56,10 @@ export default function Overview() {
   ];
 
   return (
-    <div className="space-y-2">
-      <h1 className="sticky top-[48px] z-10 bg-background py-1 text-2xl font-bold">Dashboard</h1>
+    <div className="p-4 md:p-6">
+      <h1 className="sticky top-[48px] z-10 bg-background py-2 text-2xl font-bold">Dashboard</h1>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-4">
         {loading ? (
           <>
             {[1, 2, 3, 4].map((i) => (
@@ -90,7 +90,6 @@ export default function Overview() {
             {loading ? (
               <LoadingGrid count={3} columns={1} />
             ) : recentCarts.length === 0 ? (
-
                 <p className="text-sm text-muted-foreground">No sales yet.</p>
               ) : (
                 <div className="space-y-2">
@@ -118,7 +117,6 @@ export default function Overview() {
             {loading ? (
               <LoadingGrid count={3} columns={1} />
             ) : lowStock.length === 0 ? (
-
                 <p className="text-sm text-muted-foreground">All products well stocked.</p>
               ) : (
                 <div className="space-y-2">
