@@ -36,6 +36,8 @@ type SoldItemRow = {
   products?: { 
     name?: string; 
     stock?: number; 
+    price?: number;
+    cost?: number;
     attributes?: Json;
     categories?: { name?: string } | null;
   } 
@@ -59,7 +61,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
     const [cartRes, itemsRes] = await Promise.all([
       supabase.from("carts").select("*, customers(full_name, email), admins(customers:customers(full_name))").eq("id", cartId).single(),
       // Fetch all sold_products including refunded ones for full history
-      supabase.from("sold_products").select("*, products(name, stock, attributes, categories(name))").eq("cart_id", cartId),
+      supabase.from("sold_products").select("*, products(name, stock, price, cost, attributes, categories(name))").eq("cart_id", cartId),
     ]);
     if (cartRes.data) setCart(cartRes.data);
     setItems(itemsRes.data || []);
@@ -211,11 +213,46 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                         )}
                         <div className="flex items-center justify-between text-sm">
                           <span>Unit Price</span>
+                          <span className="font-medium">${Number(item.products?.price || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Sold Price</span>
                           <span className="font-medium">${Number(item.unit_price).toFixed(2)}</span>
                         </div>
+                        {item.products?.price && item.products.price > item.unit_price && (
+                          <div className="flex items-center justify-between text-sm text-green-600">
+                            <span>Discount</span>
+                            <span className="font-medium">-${(item.products.price - item.unit_price).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {item.products?.price && item.products.price < item.unit_price && (
+                          <div className="flex items-center justify-between text-sm text-amber-600">
+                            <span>Extra</span>
+                            <span className="font-medium">+${(item.unit_price - item.products.price).toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Unit Cost</span>
+                          <span className="font-medium">${Number(item.products?.cost || 0).toFixed(2)}</span>
+                        </div>
+                        <Separator className="my-2" />
+                        {item.products?.price && item.products.price > item.unit_price && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span>Line Discount</span>
+                            <span className="font-medium text-green-600">
+                              ${((item.products.price - item.unit_price) * activeQuantity).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-sm">
                           <span>Line Total</span>
                           <span className={`font-semibold ${isFullyRefunded ? 'line-through' : ''}`}>${activeSubtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Line Profit</span>
+                          <span className={`font-semibold ${((item.unit_price - Number(item.products?.cost || 0)) * activeQuantity) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            ${((item.unit_price - Number(item.products?.cost || 0)) * activeQuantity).toFixed(2)}
+                          </span>
                         </div>
                         
                         {/* Product Attributes Section */}
@@ -276,6 +313,48 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Cart Totals Summary */}
+            {items.length > 0 && (
+              <div className="rounded-lg border bg-card p-4 space-y-2 mt-4">
+                <div className="text-sm font-semibold mb-3">Cart Summary</div>
+                {(() => {
+                  const totalDiscount = items.reduce((sum, item) => {
+                    const activeQty = item.quantity - (item.refunded_quantity || 0);
+                    const originalPrice = item.products?.price || 0;
+                    const discountPerUnit = originalPrice > item.unit_price ? originalPrice - item.unit_price : 0;
+                    return sum + (discountPerUnit * activeQty);
+                  }, 0);
+                  
+                  const totalProfit = items.reduce((sum, item) => {
+                    const activeQty = item.quantity - (item.refunded_quantity || 0);
+                    const cost = item.products?.cost || 0;
+                    return sum + ((item.unit_price - cost) * activeQty);
+                  }, 0);
+                  
+                  return (
+                    <>
+                      {totalDiscount > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Line Discount (Total)</span>
+                          <span className="font-medium text-green-600">${totalDiscount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Line Total (Total)</span>
+                        <span className="font-semibold">${Number(cart.total).toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Line Profit (Total)</span>
+                        <span className={`font-semibold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ${totalProfit.toFixed(2)}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
 
