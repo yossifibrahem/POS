@@ -270,13 +270,14 @@ export default function Categories() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="h-full flex flex-col gap-4">
+      <div className="flex items-center justify-between shrink-0">
         <h1 className="text-2xl font-bold">Categories</h1>
         <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Add Category</Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? (
           <LoadingGrid count={6} columns={3} />
         ) : categories.length > 0 ? (
@@ -298,6 +299,7 @@ export default function Categories() {
         ) : (
           <EmptyState message="No categories yet" />
         )}
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

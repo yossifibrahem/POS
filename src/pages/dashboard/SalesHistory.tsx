@@ -82,10 +82,10 @@ export default function SalesHistory() {
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Sales History</h1>
+    <div className="h-full flex flex-col gap-4">
+      <h1 className="text-2xl font-bold shrink-0">Sales History</h1>
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 shrink-0">
         <div className="space-y-1">
           <Label className="text-xs">From</Label>
           <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
@@ -96,8 +96,9 @@ export default function SalesHistory() {
         </div>
       </div>
 
-      <div className="grid gap-4 grid-cols-1">
-        {loading ? (
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="grid gap-4 grid-cols-1">
+          {loading ? (
           <LoadingGrid count={4} columns={1} />
         ) : carts.length > 0 ? (
           carts.map((c) => (
@@ -131,9 +132,10 @@ export default function SalesHistory() {
               </CardContent>
             </Card>
           ))
-        ) : (
-          <EmptyState message="No sales found" />
-        )}
+          ) : (
+            <EmptyState message="No sales found" />
+          )}
+        </div>
       </div>
 
       <AlertDialog open={!!deleteCartId} onOpenChange={(open) => !open && setDeleteCartId(null)}>

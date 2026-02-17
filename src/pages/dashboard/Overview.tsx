@@ -56,10 +56,10 @@ export default function Overview() {
   ];
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+    <div className="h-full flex flex-col gap-6">
+      <h1 className="text-2xl font-bold shrink-0">Dashboard</h1>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 shrink-0">
         {loading ? (
           <>
             {[1, 2, 3, 4].map((i) => (
@@ -82,55 +82,57 @@ export default function Overview() {
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Recent Sales</CardTitle></CardHeader>
-          <CardContent>
-          {loading ? (
-            <LoadingGrid count={3} columns={1} />
-          ) : recentCarts.length === 0 ? (
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Recent Sales</CardTitle></CardHeader>
+            <CardContent>
+            {loading ? (
+              <LoadingGrid count={3} columns={1} />
+            ) : recentCarts.length === 0 ? (
 
-              <p className="text-sm text-muted-foreground">No sales yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {recentCarts.map((cart) => (
-                  <div key={cart.id} className="flex items-center justify-between rounded border p-2 text-sm">
-                    <div>
-                      <p className="font-medium">{cart.customers?.full_name || "Unknown"}</p>
-                      <p className="text-xs text-muted-foreground">{formatDateTime(cart.created_at)}</p>
+                <p className="text-sm text-muted-foreground">No sales yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {recentCarts.map((cart) => (
+                    <div key={cart.id} className="flex items-center justify-between rounded border p-2 text-sm">
+                      <div>
+                        <p className="font-medium">{cart.customers?.full_name || "Unknown"}</p>
+                        <p className="text-xs text-muted-foreground">{formatDateTime(cart.created_at)}</p>
+                      </div>
+                      <p className="font-semibold">{formatCurrency(Number(cart.total))}</p>
                     </div>
-                    <p className="font-semibold">{formatCurrency(Number(cart.total))}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-4 w-4 text-destructive" /> Low Stock Alerts
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-          {loading ? (
-            <LoadingGrid count={3} columns={1} />
-          ) : lowStock.length === 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <AlertTriangle className="h-4 w-4 text-destructive" /> Low Stock Alerts
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+            {loading ? (
+              <LoadingGrid count={3} columns={1} />
+            ) : lowStock.length === 0 ? (
 
-              <p className="text-sm text-muted-foreground">All products well stocked.</p>
-            ) : (
-              <div className="space-y-2">
-                {lowStock.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between rounded border p-2 text-sm">
-                    <span>{p.name}</span>
-                    <Badge variant={p.stock === 0 ? "destructive" : "secondary"}>{p.stock} left</Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                <p className="text-sm text-muted-foreground">All products well stocked.</p>
+              ) : (
+                <div className="space-y-2">
+                  {lowStock.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between rounded border p-2 text-sm">
+                      <span>{p.name}</span>
+                      <Badge variant={p.stock === 0 ? "destructive" : "secondary"}>{p.stock} left</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

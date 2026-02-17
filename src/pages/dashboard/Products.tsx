@@ -255,13 +255,13 @@ export default function Products() {
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="h-full flex flex-col gap-4">
+      <div className="flex items-center justify-between shrink-0">
         <h1 className="text-2xl font-bold">Products</h1>
         <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Add Product</Button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row gap-3 shrink-0">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search products..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -296,7 +296,8 @@ export default function Products() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? (
           <LoadingGrid count={6} columns={3} />
         ) : filtered.length > 0 ? (
@@ -329,6 +330,7 @@ export default function Products() {
         ) : (
           <EmptyState message="No products found" />
         )}
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

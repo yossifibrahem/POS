@@ -67,11 +67,11 @@ export default function DashboardLayout() {
             </Button>
           </div>
         </Sidebar>
-        <SidebarInset>
-          <header className="flex h-12 items-center border-b px-4">
+        <SidebarInset className="flex flex-col h-screen overflow-hidden">
+          <header className="flex h-12 items-center border-b px-4 shrink-0">
             <SidebarTrigger />
           </header>
-          <div className="flex-1 p-4 md:p-6">
+          <div className="flex-1 p-4 md:p-6 overflow-hidden">
             <Outlet />
           </div>
         </SidebarInset>
