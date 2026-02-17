@@ -31,7 +31,7 @@ export default function Overview() {
     Promise.all([
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
-      supabase.from("carts").select("total").gte("created_at", today),
+      supabase.from("carts").select("total").gte("created_at", today).eq("status", "completed"),
       supabase.from("carts").select("*, customers(full_name)").order("created_at", { ascending: false }).limit(10),
       supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
     ]).then(([productsRes, customersRes, todayCartsRes, recentRes, lowStockRes]) => {
