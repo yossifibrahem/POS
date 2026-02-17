@@ -308,6 +308,64 @@ CREATE TRIGGER trg_restock_on_sold_product_refund
 
 
 -- =============================================================================
+-- TRIGGER FUNCTION: auto-refund cart when all sold_products are refunded
+--
+--   Fires AFTER a sold_products row is updated.
+--   If every line item in the cart has status = 'refunded',
+--   the cart is automatically transitioned to status = 'refunded'.
+--
+--   Conditions:
+--     • The cart must currently be 'completed' (the only valid state before
+--       a full refund — a cart that is already 'refunded' or 'cancelled'
+--       should not be touched again).
+--     • There must be at least one sold_products row (guards against
+--       edge cases where a cart has no items).
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.auto_refund_cart_if_all_items_refunded()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_total_items    INTEGER;
+  v_refunded_items INTEGER;
+BEGIN
+  -- Only evaluate when this item becomes fully refunded.
+  -- Note: status is set to 'refunded' by the BEFORE trigger (restock_on_sold_product_refund)
+  -- within the same statement, so AFTER UPDATE OF status would never fire here.
+  -- We check the refunded_quantity condition directly instead.
+  IF NEW.refunded_quantity < NEW.quantity THEN
+    RETURN NEW;
+  END IF;
+
+  -- Count all items vs refunded items for this cart
+  SELECT
+    COUNT(*)                                      AS total,
+    COUNT(*) FILTER (WHERE status = 'refunded')   AS refunded
+  INTO v_total_items, v_refunded_items
+  FROM public.sold_products
+  WHERE cart_id = NEW.cart_id;
+
+  -- If every item is refunded, mark the cart as refunded
+  IF v_total_items > 0 AND v_total_items = v_refunded_items THEN
+    UPDATE public.carts
+       SET status = 'refunded'
+     WHERE id     = NEW.cart_id
+       AND status = 'completed';  -- only transition from 'completed'
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_auto_refund_cart_if_all_items_refunded
+  AFTER UPDATE OF refunded_quantity ON public.sold_products
+  FOR EACH ROW EXECUTE FUNCTION public.auto_refund_cart_if_all_items_refunded();
+
+
+-- =============================================================================
 -- TRIGGER FUNCTION: cart total recalculation
 --   Recalculates cart total whenever sold_products are inserted/updated/deleted.
 -- =============================================================================
