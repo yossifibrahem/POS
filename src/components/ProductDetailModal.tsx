@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
@@ -117,15 +118,16 @@ export function ProductDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] p-0">
+        <DialogHeader className="px-6 pt-6">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Package className="h-5 w-5 text-primary" />
             {product.name}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-8">
+        <ScrollArea className="max-h-[calc(90vh-8rem)] px-6">
+        <div className="space-y-8 pb-6">
           {/* Category */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Tag className="h-4 w-4" />
@@ -251,6 +253,7 @@ export function ProductDetailModal({
             )}
           </div>
         </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

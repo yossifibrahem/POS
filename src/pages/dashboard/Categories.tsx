@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { withLoading, handleError, handleSuccess, validateRequired } from "@/lib/api";
@@ -300,12 +301,13 @@ export default function Categories() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] p-0">
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>{editing ? "Edit Category" : "Add Category"}</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-6">
+          <ScrollArea className="max-h-[calc(90vh-8rem)]">
+          <div className="space-y-6 px-6 pb-6">
             {/* Category Name */}
             <div className="space-y-2">
               <Label>Name</Label>
@@ -459,9 +461,10 @@ export default function Categories() {
             )}
           </div>
 
-          <DialogFooter>
+          </ScrollArea>
+          <div className="px-6 pb-6">
             <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
