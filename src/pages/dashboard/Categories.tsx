@@ -301,12 +301,12 @@ export default function Categories() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] p-0">
+        <DialogContent className="max-w-2xl max-h-[85vh] p-0">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle>{editing ? "Edit Category" : "Add Category"}</DialogTitle>
           </DialogHeader>
           
-          <ScrollArea className="max-h-[calc(90vh-8rem)]">
+          <ScrollArea className="max-h-[calc(85vh-8rem)]">
           <div className="space-y-6 px-6 pb-6">
             {/* Category Name */}
             <div className="space-y-2">

@@ -118,7 +118,7 @@ export function ProductDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] p-0">
+      <DialogContent className="sm:max-w-2xl max-h-[95vh] p-0">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Package className="h-5 w-5 text-primary" />
@@ -126,7 +126,7 @@ export function ProductDetailModal({
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-8rem)] px-6">
+        <ScrollArea className="max-h-[calc(95vh-8rem)] px-6">
         <div className="space-y-8 pb-6">
           {/* Category */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
