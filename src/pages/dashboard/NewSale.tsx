@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import type { Json } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +26,15 @@ interface Product {
   category_id: string | null;
   created_at: string;
   categories?: { name: string } | null;
-  attributes?: Record<string, string | number | boolean>;
+  attributes?: Json;
+}
+
+// Helper to safely parse attributes from Json to a record
+function parseAttributes(attributes: Json | undefined): Record<string, string | number | boolean> {
+  if (typeof attributes === 'object' && attributes !== null && !Array.isArray(attributes)) {
+    return attributes as Record<string, string | number | boolean>;
+  }
+  return {};
 }
 
 interface CartItem {
@@ -63,7 +72,7 @@ export default function NewSale() {
       supabase.from("categories").select("*").order("name"),
       supabase.from("customers").select("id, full_name, email").order("full_name"),
     ]).then(([productsRes, categoriesRes, customersRes]) => {
-      setProducts(productsRes.data || []);
+      setProducts((productsRes.data || []) as Product[]);
       setCategories(categoriesRes.data || []);
       setCustomers(customersRes.data || []);
       // Auto-select the customer if the logged-in user is an admin (their ID matches a customer ID)
@@ -217,20 +226,25 @@ export default function NewSale() {
                 </CardHeader>
                 <CardContent className="p-3 space-y-2">
                   {/* Attributes preview */}
-                  {p.attributes && Object.keys(p.attributes).length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {Object.entries(p.attributes).slice(0, 3).map(([key, value]) => (
-                        <Badge key={key} variant="outline" className="text-xs font-normal">
-                          {key}: {String(value)}
-                        </Badge>
-                      ))}
-                      {Object.keys(p.attributes).length > 3 && (
-                        <Badge variant="outline" className="text-xs font-normal">
-                          +{Object.keys(p.attributes).length - 3} more
-                        </Badge>
-                      )}
-                    </div>
-                  )}
+                  {(() => {
+                    const attrs = parseAttributes(p.attributes);
+                    const entries = Object.entries(attrs);
+                    if (entries.length === 0) return null;
+                    return (
+                      <div className="flex flex-wrap gap-1">
+                        {entries.slice(0, 3).map(([key, value]) => (
+                          <Badge key={key} variant="outline" className="text-xs font-normal">
+                            {key}: {String(value)}
+                          </Badge>
+                        ))}
+                        {entries.length > 3 && (
+                          <Badge variant="outline" className="text-xs font-normal">
+                            +{entries.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold">{formatCurrency(p.price)}</span>

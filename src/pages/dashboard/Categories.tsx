@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,11 +31,19 @@ interface CategoryAttribute {
   category_id: string;
   name: string;
   label: string;
-  attribute_type: AttributeType;
+  attribute_type: string;
   unit?: string;
-  options?: string[];
+  options?: Json;
   is_required: boolean;
   display_order: number;
+}
+
+// Helper to safely parse options from Json to string array
+function parseOptions(options: Json | undefined): string[] {
+  if (Array.isArray(options)) {
+    return options.filter((o): o is string => typeof o === 'string');
+  }
+  return [];
 }
 
 export default function Categories() {
@@ -138,7 +147,7 @@ export default function Categories() {
       is_required: attr.is_required,
       display_order: attr.display_order,
     });
-    setAttributeOptionsInput(attr.options?.join(", ") || "");
+    setAttributeOptionsInput(parseOptions(attr.options).join(", ") || "");
     setAttributesExpanded(true);
   };
 
@@ -154,7 +163,8 @@ export default function Categories() {
     }
 
     // Validate enum has options
-    if (attributeForm.attribute_type === "enum" && (!attributeForm.options || attributeForm.options.length === 0)) {
+    const optionsArray = parseOptions(attributeForm.options);
+    if (attributeForm.attribute_type === "enum" && optionsArray.length === 0) {
       toast.error("Enum type requires at least one option");
       return;
     }
@@ -329,13 +339,13 @@ export default function Categories() {
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">{attr.label}</span>
-                                {getAttributeTypeBadge(attr.attribute_type)}
+                                {getAttributeTypeBadge(attr.attribute_type as AttributeType)}
                                 {attr.is_required && <Badge variant="destructive" className="text-xs">Required</Badge>}
                               </div>
                               <div className="text-xs text-muted-foreground">
                                 {attr.name}
                                 {attr.unit && ` • Unit: ${attr.unit}`}
-                                {attr.attribute_type === "enum" && attr.options && ` • Options: ${attr.options.join(", ")}`}
+                                {attr.attribute_type === "enum" && ` • Options: ${parseOptions(attr.options).join(", ")}`}
                               </div>
                             </div>
                             <Button variant="ghost" size="icon" onClick={() => openEditAttribute(attr)}>

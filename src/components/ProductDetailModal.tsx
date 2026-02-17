@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { Package, Tag, DollarSign, Coins, Box, Calendar, ShoppingCart, Pencil, Check, X, List } from "lucide-react";
 
 interface Product {
@@ -16,7 +17,15 @@ interface Product {
   category_id: string | null;
   created_at: string;
   categories?: { name: string } | null;
-  attributes?: Record<string, string | number | boolean>;
+  attributes?: Json;
+}
+
+// Helper to safely get attribute value from Json
+function getAttributeValue(attributes: Json | undefined, key: string): string | number | boolean | undefined {
+  if (typeof attributes === 'object' && attributes !== null && !Array.isArray(attributes)) {
+    return (attributes as Record<string, Json>)[key] as string | number | boolean | undefined;
+  }
+  return undefined;
 }
 
 type AttributeType = 'text' | 'number' | 'boolean' | 'enum';
@@ -198,7 +207,7 @@ export function ProductDetailModal({
                     <div key={attr.name} className="space-y-1">
                       <div className="text-xs text-muted-foreground">{attr.label}</div>
                       <div className="font-medium">
-                        {formatAttributeValue(attr, product.attributes?.[attr.name])}
+                        {formatAttributeValue(attr, getAttributeValue(product.attributes, attr.name))}
                       </div>
                     </div>
                   ))}
