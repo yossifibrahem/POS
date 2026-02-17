@@ -186,11 +186,10 @@ export default function NewSale() {
         <h1 className="text-2xl font-bold">New Sale</h1>
         <Button
           variant="outline"
-          size="lg"
           className="relative gap-2"
           onClick={() => setCartOpen(true)}
         >
-          <ShoppingCart className="h-5 w-5" />
+          <ShoppingCart className="h-4 w-4" />
           Cart
           {cartItemCount > 0 && (
             <Badge variant="default" className="ml-1 h-5 min-w-5 rounded-full px-1.5 text-xs">
