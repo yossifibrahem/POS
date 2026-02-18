@@ -75,10 +75,10 @@ CREATE TABLE public.customers (
 );
 
 -- ---------------------------------------------------------------------------
--- Admins (subset of customers)
+-- Admins (linked to auth.users)
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.admins (
-  id         UUID                     NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE PRIMARY KEY,
+  id         UUID                     NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
