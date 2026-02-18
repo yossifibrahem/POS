@@ -98,3 +98,26 @@ export function sortProducts<T extends {
     return comparison * multiplier;
   });
 }
+
+/**
+ * Filter carts by product name in sold_products
+ */
+export function filterCartsByProduct<T extends { 
+  sold_products?: { products?: { name?: string } }[] 
+}>(
+  carts: T[],
+  search: string
+): T[] {
+  if (!search.trim()) return carts;
+  
+  const term = search.toLowerCase();
+  
+  return carts.filter((cart) => {
+    if (!cart.sold_products || cart.sold_products.length === 0) return false;
+    
+    return cart.sold_products.some((sp) => {
+      const productName = sp.products?.name || "";
+      return productName.toLowerCase().includes(term);
+    });
+  });
+}

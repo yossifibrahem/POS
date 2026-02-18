@@ -16,10 +16,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2 } from "lucide-react";
+import { Trash2, Search } from "lucide-react";
 import { withLoading, handleError, handleSuccess } from "@/lib/api";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { updateCartStatusIfAllRefunded } from "@/lib/cart";
+import { filterCartsByProduct } from "@/lib/filters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 
 interface Cart {
@@ -43,6 +44,7 @@ export default function SalesHistory() {
   const [processing, setProcessing] = useState(false);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
@@ -118,18 +120,9 @@ export default function SalesHistory() {
 
   return (
     <div className="p-4 md:p-6">
-      <h1 className="sticky top-[48px] z-10 bg-background py-2 text-2xl font-bold">Sales History</h1>
-
-      <div className="sticky top-[96px] z-10 flex gap-4 bg-background py-2 items-end">
-        <div className="space-y-1">
-          <Label className="text-xs">From</Label>
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">To</Label>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
-        <div className="flex items-center gap-2 pb-2 ml-auto">
+      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-2">
+        <h1 className="text-2xl font-bold">Sales History</h1>
+        <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Show only completed</span>
           <Switch
             checked={showOnlyCompleted}
@@ -138,12 +131,34 @@ export default function SalesHistory() {
         </div>
       </div>
 
+      <div className="sticky top-[96px] z-10 flex flex-col sm:flex-row gap-3 bg-background py-2 items-end">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input 
+            placeholder="Search by product..." 
+            className="pl-9" 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+          />
+        </div>
+        <div className="flex gap-3 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs">From</Label>
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">To</Label>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+        </div>
+      </div>
+
       <div className="pt-4 pb-6">
         <div className="grid gap-4 grid-cols-1">
           {loading ? (
           <LoadingGrid count={4} columns={1} />
-        ) : carts.length > 0 ? (
-          carts.map((c) => (
+        ) : filterCartsByProduct(carts, search).length > 0 ? (
+          filterCartsByProduct(carts, search).map((c) => (
             <Card key={c.id} className="cursor-pointer w-full" onClick={() => { setSelectedCartId(c.id); setModalOpen(true); }}>
               <CardHeader>
                 <CardTitle className="text-sm font-medium">{formatDateTime(c.created_at)}</CardTitle>
@@ -221,7 +236,7 @@ export default function SalesHistory() {
             </Card>
           ))
           ) : (
-            <EmptyState message="No sales found" />
+            <EmptyState message={search ? "No sales found matching your search" : "No sales found"} />
           )}
         </div>
       </div>
