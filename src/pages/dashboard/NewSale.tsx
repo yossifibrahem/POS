@@ -351,8 +351,14 @@ export default function NewSale() {
                           <span className="text-xs text-muted-foreground">Price:</span>
                           <Input className="w-24 h-7 text-sm" type="number" min="0" step="0.01" value={item.unit_price}
                             onChange={(e) => updatePrice(item.product.id, parseFloat(e.target.value) || 0)} />
+                          {item.product.price > item.unit_price && (
+                            <span className="text-xs text-green-600">-{formatCurrency((item.product.price - item.unit_price) * item.quantity)}</span>
+                          )}
+                          {item.product.price < item.unit_price && (
+                            <span className="text-xs text-amber-600">+{formatCurrency((item.unit_price - item.product.price) * item.quantity)}</span>
+                          )}
                         </div>
-                        <p className="text-sm font-semibold">{formatCurrency(item.quantity * item.product.price)}</p>
+                        <p className="text-sm font-semibold">{formatCurrency(item.quantity * item.unit_price)}</p>
                       </div>
                     </CardContent>
                   </Card>
