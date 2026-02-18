@@ -32,6 +32,7 @@ interface Cart {
   sold_products?: { quantity: number; refunded_quantity: number; status?: string; products?: { name?: string } }[];
 }
 
+
 export default function SalesHistory() {
   const [loading, setLoading] = useState(true);
   const [carts, setCarts] = useState<Cart[]>([]);
@@ -49,8 +50,16 @@ export default function SalesHistory() {
       if (showOnlyCompleted) {
         query = query.eq("status", "completed");
       }
-      if (dateFrom) query = query.gte("created_at", dateFrom);
-      if (dateTo) query = query.lte("created_at", dateTo + "T23:59:59");
+      if (dateFrom) {
+        const [year, month, day] = dateFrom.split("-").map(Number);
+        const start = new Date(year, month - 1, day).toISOString();
+        query = query.gte("created_at", start);
+      }
+      if (dateTo) {
+        const [year, month, day] = dateTo.split("-").map(Number);
+        const end = new Date(year, month - 1, day, 23, 59, 59, 999).toISOString();
+        query = query.lte("created_at", end);
+      }
       const { data } = await query;
       
       // Keep all items but mark refunded ones - we'll display them with visual indication

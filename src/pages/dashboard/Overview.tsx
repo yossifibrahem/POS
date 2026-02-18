@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Package, Users, ShoppingCart, DollarSign, AlertTriangle, TrendingUp, Clock, ArrowUpRight, Tags } from "lucide-react";
-import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { formatCurrency, formatDateTime, getLocalDateRange } from "@/lib/formatters";
 import { StatCardSkeleton, LoadingGrid } from "@/components/LoadingGrid";
 import { CartDetailModal } from "@/components/CartDetailModal";
 
@@ -51,16 +51,16 @@ export default function Overview() {
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    const today = new Date().toISOString().split("T")[0];
+    const { start, end } = getLocalDateRange();
 
     Promise.all([
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("categories").select("id", { count: "exact", head: true }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
-      supabase.from("carts").select("total").gte("created_at", today).eq("status", "completed"),
+      supabase.from("carts").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed"),
       supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
       supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
-      supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", today),
+      supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
     ]).then(([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
       const todayCarts = todayCartsRes.data || [];
       const soldProducts = soldProductsRes.data || [];
@@ -296,15 +296,15 @@ export default function Overview() {
         onOpenChange={setModalOpen}
         onRefund={() => {
           // Refresh the data after refund
-          const today = new Date().toISOString().split("T")[0];
+          const { start, end } = getLocalDateRange();
           Promise.all([
             supabase.from("products").select("id", { count: "exact", head: true }),
             supabase.from("categories").select("id", { count: "exact", head: true }),
             supabase.from("customers").select("id", { count: "exact", head: true }),
-            supabase.from("carts").select("total").gte("created_at", today).eq("status", "completed"),
+            supabase.from("carts").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed"),
             supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
             supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
-            supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", today),
+            supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
           ]).then(([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
             const todayCarts = todayCartsRes.data || [];
             const soldProducts = soldProductsRes.data || [];
