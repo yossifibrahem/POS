@@ -352,7 +352,7 @@ export default function NewSale() {
                           <Input className="w-24 h-7 text-sm" type="number" min="0" step="0.01" value={item.unit_price}
                             onChange={(e) => updatePrice(item.product.id, parseFloat(e.target.value) || 0)} />
                         </div>
-                        <p className="text-sm font-semibold">{formatCurrency(item.unit_price)}</p>
+                        <p className="text-sm font-semibold">{formatCurrency(item.quantity * item.product.price)}</p>
                       </div>
                     </CardContent>
                   </Card>
