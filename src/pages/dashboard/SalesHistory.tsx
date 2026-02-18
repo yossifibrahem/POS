@@ -22,6 +22,20 @@ import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { updateCartStatusIfAllRefunded } from "@/lib/cart";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 
+/**
+ * Convert a local date string (YYYY-MM-DD) to UTC timestamp
+ * This ensures proper timezone handling for database queries
+ */
+function localDateToUTC(dateString: string, endOfDay: boolean = false): string {
+  const [year, month, day] = dateString.split('-').map(Number);
+  if (endOfDay) {
+    // End of day: 23:59:59.999
+    return new Date(year, month - 1, day, 23, 59, 59, 999).toISOString();
+  }
+  // Start of day: 00:00:00
+  return new Date(year, month - 1, day).toISOString();
+}
+
 interface Cart {
   id: string;
   total: number;
@@ -49,8 +63,8 @@ export default function SalesHistory() {
       if (showOnlyCompleted) {
         query = query.eq("status", "completed");
       }
-      if (dateFrom) query = query.gte("created_at", dateFrom);
-      if (dateTo) query = query.lte("created_at", dateTo + "T23:59:59");
+      if (dateFrom) query = query.gte("created_at", localDateToUTC(dateFrom));
+      if (dateTo) query = query.lte("created_at", localDateToUTC(dateTo, true));
       const { data } = await query;
       
       // Keep all items but mark refunded ones - we'll display them with visual indication
