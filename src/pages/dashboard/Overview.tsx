@@ -10,12 +10,23 @@ import { StatCardSkeleton, LoadingGrid } from "@/components/LoadingGrid";
 import { CartDetailModal } from "@/components/CartDetailModal";
 
 /**
- * Get today's date in YYYY-MM-DD format using local timezone
- * This ensures correct date for daily stats regardless of UTC offset
+ * Get the start and end of today in UTC timestamps for database queries
+ * This handles timezone conversion properly for daily stats
  */
-function getLocalDateString(): string {
+function getTodayUTCRange(): { start: string; end: string } {
   const now = new Date();
-  return now.toLocaleDateString('en-CA', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  
+  // Get start of local day (00:00:00)
+  const startOfLocalDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // Get end of local day (23:59:59.999)
+  const endOfLocalDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  
+  // Convert to ISO strings for database query
+  return {
+    start: startOfLocalDay.toISOString(),
+    end: endOfLocalDay.toISOString()
+  };
 }
 
 /**
@@ -60,16 +71,16 @@ export default function Overview() {
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    const today = getLocalDateString();
+    const { start, end } = getTodayUTCRange();
 
     Promise.all([
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("categories").select("id", { count: "exact", head: true }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
-      supabase.from("carts").select("total").gte("created_at", today).eq("status", "completed"),
+      supabase.from("carts").select("total").gte("created_at", start).lt("created_at", end).eq("status", "completed"),
       supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
       supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
-      supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", today),
+      supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", start).lt("created_at", end),
     ]).then(([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
       const todayCarts = todayCartsRes.data || [];
       const soldProducts = soldProductsRes.data || [];
@@ -305,15 +316,15 @@ export default function Overview() {
         onOpenChange={setModalOpen}
         onRefund={() => {
           // Refresh the data after refund
-          const today = getLocalDateString();
+          const { start, end } = getTodayUTCRange();
           Promise.all([
             supabase.from("products").select("id", { count: "exact", head: true }),
             supabase.from("categories").select("id", { count: "exact", head: true }),
             supabase.from("customers").select("id", { count: "exact", head: true }),
-            supabase.from("carts").select("total").gte("created_at", today).eq("status", "completed"),
+            supabase.from("carts").select("total").gte("created_at", start).lt("created_at", end).eq("status", "completed"),
             supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
             supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
-            supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", today),
+            supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", start).lt("created_at", end),
           ]).then(([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
             const todayCarts = todayCartsRes.data || [];
             const soldProducts = soldProductsRes.data || [];
