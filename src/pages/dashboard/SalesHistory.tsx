@@ -28,7 +28,7 @@ interface Cart {
   created_at: string;
   status?: string;
   customers?: { full_name?: string };
-  admins?: { id?: string };
+  admins?: { id?: string; full_name?: string };
   sold_products?: { quantity: number; refunded_quantity: number; status?: string; products?: { name?: string } }[];
 }
 
@@ -47,7 +47,7 @@ export default function SalesHistory() {
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
-      let query = supabase.from("carts").select("*, customers(full_name), admins(id), sold_products(quantity, refunded_quantity, status, products(name))").order("created_at", { ascending: false });
+      let query = supabase.from("carts").select("*, customers(full_name), admins(full_name), sold_products(quantity, refunded_quantity, status, products(name))").order("created_at", { ascending: false });
       if (showOnlyCompleted) {
         query = query.eq("status", "completed");
       }
@@ -160,7 +160,7 @@ export default function SalesHistory() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
                   <span>{c.customers?.full_name || "Walk-in Customer"}</span>
                   <span className="hidden sm:inline">•</span>
-                  <span>Processed by: {c.admins?.id ? "Admin" : "Unknown"}</span>
+                  <span>Processed by: {c.admins?.full_name || "Unknown"}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-sm">Items: {c.sold_products?.length || 0}</div>

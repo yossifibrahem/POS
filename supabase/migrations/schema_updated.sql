@@ -79,7 +79,9 @@ CREATE TABLE public.customers (
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.admins (
   id         UUID                     NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+  full_name  TEXT                     NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 -- ---------------------------------------------------------------------------
@@ -183,6 +185,10 @@ CREATE TRIGGER trg_products_updated_at
 
 CREATE TRIGGER trg_customers_updated_at
   BEFORE UPDATE ON public.customers
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TRIGGER trg_admins_updated_at
+  BEFORE UPDATE ON public.admins
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 CREATE TRIGGER trg_carts_updated_at
