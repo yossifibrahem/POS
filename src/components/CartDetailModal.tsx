@@ -23,7 +23,7 @@ type CartRow = {
   created_at: string; 
   notes?: string | null; 
   customers?: { full_name?: string; email?: string }; 
-  admins?: { customers?: { full_name?: string } } 
+  admins?: { id?: string } 
 };
 
 type SoldItemRow = { 
@@ -59,7 +59,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
   const loadData = useCallback(async () => {
     if (!cartId) return;
     const [cartRes, itemsRes] = await Promise.all([
-      supabase.from("carts").select("*, customers(full_name, email), admins(customers:customers(full_name))").eq("id", cartId).single(),
+      supabase.from("carts").select("*, customers(full_name, email), admins(id)").eq("id", cartId).single(),
       // Fetch all sold_products including refunded ones for full history
       supabase.from("sold_products").select("*, products(name, stock, price, cost, attributes, categories(name))").eq("cart_id", cartId),
     ]);
@@ -148,7 +148,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
             <div className="rounded-lg border bg-card p-4 space-y-2">
               <div className="grid gap-2 text-sm sm:grid-cols-2">
                 <p><span className="font-medium">Customer:</span> {cart.customers?.full_name || "Walk-in Customer"}</p>
-                <p><span className="font-medium">Processed by:</span> {cart.admins?.customers?.full_name || "Unknown"}</p>
+                <p><span className="font-medium">Processed by:</span> {cart.admins?.id ? "Admin" : "Unknown"}</p>
                 <p><span className="font-medium">Date:</span> {new Date(cart.created_at).toLocaleString()}</p>
                 <p><span className="font-medium">Total:</span> ${Number(cart.total).toFixed(2)}</p>
                 {cart.notes && <p className="sm:col-span-2"><span className="font-medium">Notes:</span> {cart.notes}</p>}

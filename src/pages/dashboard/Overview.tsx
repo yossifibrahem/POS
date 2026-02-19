@@ -31,7 +31,7 @@ interface Cart {
   created_at: string;
   status?: string;
   customers?: { full_name?: string };
-  admins?: { customers?: { full_name?: string } };
+  admins?: { id?: string };
   sold_products?: { quantity: number; refunded_quantity: number; status?: string; products?: { name?: string } }[];
 }
 
@@ -58,7 +58,7 @@ export default function Overview() {
       supabase.from("categories").select("id", { count: "exact", head: true }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
       supabase.from("carts").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed"),
-      supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
+      supabase.from("carts").select("*, customers(full_name), admins(id), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
       supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
       supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
     ]).then(([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
@@ -183,7 +183,7 @@ export default function Overview() {
                           {formatRelativeTime(cart.created_at)} • {cart.sold_products?.length || 0} items
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Processed by: {cart.admins?.customers?.full_name || "Unknown"}
+                          Processed by: {cart.admins?.id ? "Admin" : "Unknown"}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -302,7 +302,7 @@ export default function Overview() {
             supabase.from("categories").select("id", { count: "exact", head: true }),
             supabase.from("customers").select("id", { count: "exact", head: true }),
             supabase.from("carts").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed"),
-            supabase.from("carts").select("*, customers(full_name), admins(customers:customers(full_name)), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
+            supabase.from("carts").select("*, customers(full_name), admins(id), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
             supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
             supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
           ]).then(([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
