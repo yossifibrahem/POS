@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/formatters";
+import { canSeeCostAndProfit } from "@/lib/permissions";
 
 type CartRow = { 
   id: string; total: number; created_at: string; notes?: string | null; 
@@ -37,7 +38,7 @@ const Row = ({ label, value, className = "", icon: Icon }: { label: string; valu
 );
 
 export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDetailModalProps) {
-  const { user } = useAuth();
+  const { user, adminLevel } = useAuth();
   const [cart, setCart] = useState<CartRow | null>(null);
   const [items, setItems] = useState<SoldItemRow[]>([]);
   const [returningId, setReturningId] = useState<string | null>(null);
@@ -202,8 +203,8 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
 
                         <Separator className="my-2" />
 
-                        {m.unitProfit !== null && <Row label="Unit Profit" value={formatCurrency(m.unitProfit)} className={m.unitProfit >= 0 ? 'text-green-600' : 'text-red-600'} icon={TrendingUp} />}
-                        {m.lineProfit !== null && <Row label="Line Profit" value={formatCurrency(m.lineProfit)} className={m.lineProfit >= 0 ? 'text-green-600' : 'text-red-600'} icon={TrendingUp} />}
+                        {canSeeCostAndProfit(adminLevel) && m.unitProfit !== null && <Row label="Unit Profit" value={formatCurrency(m.unitProfit)} className={m.unitProfit >= 0 ? 'text-green-600' : 'text-red-600'} icon={TrendingUp} />}
+                        {canSeeCostAndProfit(adminLevel) && m.lineProfit !== null && <Row label="Line Profit" value={formatCurrency(m.lineProfit)} className={m.lineProfit >= 0 ? 'text-green-600' : 'text-red-600'} icon={TrendingUp} />}
                         
                         {hasAttrs && (
                           <>
@@ -246,7 +247,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
               <div className="rounded-lg border bg-card p-4 space-y-2 mt-4">
                 <div className="text-sm font-semibold mb-3">Cart Summary</div>
                 {totalDiscount > 0 && <Row label="Total Discount" value={`-${formatCurrency(totalDiscount)}`} className="text-green-600" icon={Tag} />}
-                <Row label="Total Profit" value={formatCurrency(totalProfit)} className={totalProfit >= 0 ? 'text-green-600' : 'text-red-600'} icon={TrendingUp} />
+                {canSeeCostAndProfit(adminLevel) && <Row label="Total Profit" value={formatCurrency(totalProfit)} className={totalProfit >= 0 ? 'text-green-600' : 'text-red-600'} icon={TrendingUp} />}
                 <Separator className="my-2" />
                 <Row label="Total" value={formatCurrency(netTotal)} className="font-semibold" />
               </div>
