@@ -188,7 +188,7 @@ export default function Overview() {
               </div>
             ) : (
               <div className="space-y-2">
-                {recentCarts.slice(0, 8).map((cart) => (
+                {recentCarts.slice(0, 5).map((cart) => (
                   <div 
                     key={cart.id} 
                     className="group p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
@@ -245,6 +245,14 @@ export default function Overview() {
                     </div>
                   </div>
                 ))}
+                {recentCarts.length > 5 && (
+                  <div 
+                    className="flex items-center justify-center p-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                    onClick={() => navigate('/dashboard/sales/history')}
+                  >
+                    View all {recentCarts.length} sales →
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
