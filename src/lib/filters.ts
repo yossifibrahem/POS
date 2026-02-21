@@ -100,13 +100,17 @@ export function sortProducts<T extends {
 }
 
 /**
- * Filter carts by customer name
- * Note: With the new schema using cart_summary view, we filter by customer_name
- * instead of product names. To filter by product, use the cart_line_items view
- * and join with carts.
+ * Filter carts by search term across multiple fields:
+ * - customer_name
+ * - processed_by_name
+ * - notes
+ * - product names in line_items
  */
 export function filterCartsByProduct<T extends { 
-  customer_name?: string | null 
+  customer_name?: string | null;
+  processed_by_name?: string | null;
+  notes?: string | null;
+  line_items?: { product_name?: string | null }[] | null;
 }>(
   carts: T[],
   search: string
@@ -116,7 +120,19 @@ export function filterCartsByProduct<T extends {
   const term = search.toLowerCase();
   
   return carts.filter((cart) => {
-    const customerName = cart.customer_name || "";
-    return customerName.toLowerCase().includes(term);
+    const customerName = (cart.customer_name || "").toLowerCase();
+    const processedByName = (cart.processed_by_name || "").toLowerCase();
+    const notes = (cart.notes || "").toLowerCase();
+    
+    // Check if any product name in line_items matches
+    const productNames = cart.line_items?.map(item => (item.product_name || "").toLowerCase()) || [];
+    const hasMatchingProduct = productNames.some(name => name.includes(term));
+    
+    return (
+      customerName.includes(term) ||
+      processedByName.includes(term) ||
+      notes.includes(term) ||
+      hasMatchingProduct
+    );
   });
 }
