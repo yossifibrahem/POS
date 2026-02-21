@@ -15,13 +15,12 @@ import {
   SidebarInset,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Package, Tags, Users, ShoppingCart, History, LogOut } from "lucide-react";
+import { LayoutDashboard, Package, Tags, ShoppingCart, History, LogOut } from "lucide-react";
 
 const navItems = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
   { title: "Products", url: "/dashboard/products", icon: Package },
   { title: "Categories", url: "/dashboard/categories", icon: Tags },
-  { title: "Customers", url: "/dashboard/customers", icon: Users },
   { title: "New Sale", url: "/dashboard/sales", icon: ShoppingCart },
   { title: "Sales History", url: "/dashboard/sales/history", icon: History },
 ];

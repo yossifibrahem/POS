@@ -15,8 +15,8 @@ interface Cart {
   created_at: string;
   status?: string;
   refund_status?: string;
-  customers?: { full_name?: string };
-  admins?: { id?: string; full_name?: string };
+  customers?: { profiles?: { full_name?: string } | null };
+  admins?: { profiles?: { full_name?: string } | null };
   line_items?: { sold_quantity: number; refunded_quantity: number; product_name?: string }[];
 }
 
@@ -200,7 +200,7 @@ export default function Overview() {
                           {formatRelativeTime(cart.created_at)} • {cart.line_items?.length || 0} items
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Processed by: {cart.admins?.full_name || "Unknown"}
+                          Processed by: {cart.admins?.profiles?.full_name || "Unknown"}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">

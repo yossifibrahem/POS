@@ -12,7 +12,6 @@ import DashboardLayout from "./components/DashboardLayout";
 import Overview from "./pages/dashboard/Overview";
 import Products from "./pages/dashboard/Products";
 import Categories from "./pages/dashboard/Categories";
-import Customers from "./pages/dashboard/Customers";
 import NewSale from "./pages/dashboard/NewSale";
 import SalesHistory from "./pages/dashboard/SalesHistory";
 import NotFound from "./pages/NotFound";
@@ -39,7 +38,6 @@ const App = () => (
               <Route index element={<Overview />} />
               <Route path="products" element={<Products />} />
               <Route path="categories" element={<Categories />} />
-              <Route path="customers" element={<Customers />} />
               <Route path="sales" element={<NewSale />} />
               <Route path="sales/history" element={<SalesHistory />} />
             </Route>

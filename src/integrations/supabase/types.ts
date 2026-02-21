@@ -17,28 +17,22 @@ export type Database = {
       admins: {
         Row: {
           created_at: string
-          full_name: string
           id: string
-          updated_at: string
         }
         Insert: {
           created_at?: string
-          full_name: string
           id: string
-          updated_at?: string
         }
         Update: {
           created_at?: string
-          full_name?: string
           id?: string
-          updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "admins_id_fkey"
             columns: ["id"]
             isOneToOne: true
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -159,10 +153,34 @@ export type Database = {
       customers: {
         Row: {
           created_at: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
           email: string
           full_name: string
           id: string
           phone: string | null
+          updated_at: string
         }
         Insert: {
           created_at?: string
@@ -170,6 +188,7 @@ export type Database = {
           full_name: string
           id: string
           phone?: string | null
+          updated_at?: string
         }
         Update: {
           created_at?: string
@@ -177,8 +196,17 @@ export type Database = {
           full_name?: string
           id?: string
           phone?: string | null
+          updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       products: {
         Row: {

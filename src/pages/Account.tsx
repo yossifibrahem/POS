@@ -16,11 +16,17 @@ type CartItem = {
   };
 };
 
-type Customer = {
-  id: string;
+type Profile = {
+  id?: string;
   full_name: string;
   email: string;
-  phone?: string;
+  phone: string | null;
+};
+
+type Customer = {
+  id: string;
+  created_at: string;
+  profiles: Profile | null;
 };
 
 type Cart = {
@@ -40,7 +46,7 @@ export default function Account() {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("customers").select("*").eq("id", user.id).single().then(({ data }) => setCustomer(data));
+    supabase.from("customers").select("*, profiles(*)").eq("id", user.id).single().then(({ data }) => setCustomer(data));
     supabase
       .from("carts")
       .select("*, sold_products(*, products(name))")
@@ -61,13 +67,13 @@ export default function Account() {
           <Button variant="outline" onClick={handleSignOut}>Sign Out</Button>
         </div>
 
-        {customer && (
+        {customer?.profiles && (
           <Card>
             <CardHeader><CardTitle>Profile</CardTitle></CardHeader>
             <CardContent className="space-y-1 text-sm">
-              <p><span className="font-medium">Name:</span> {customer.full_name}</p>
-              <p><span className="font-medium">Email:</span> {customer.email}</p>
-              <p><span className="font-medium">Phone:</span> {customer.phone || "—"}</p>
+              <p><span className="font-medium">Name:</span> {customer.profiles.full_name}</p>
+              <p><span className="font-medium">Email:</span> {customer.profiles.email}</p>
+              <p><span className="font-medium">Phone:</span> {customer.profiles.phone || "—"}</p>
             </CardContent>
           </Card>
         )}

@@ -1,6 +1,8 @@
 -- =============================================================================
 -- COMPLETE DATABASE SCHEMA
 -- Refund model: immutable refund ledger (refunds + refund_items)
+-- Identity model: shared `profiles` table — customers and admins both reference
+--                 it, so id / full_name / email / phone are never duplicated.
 -- =============================================================================
 
 
@@ -64,9 +66,11 @@ CREATE TABLE public.products (
 );
 
 -- ---------------------------------------------------------------------------
--- Customers (linked to auth.users)
+-- Profiles (linked to auth.users)
+-- Single source of truth for identity fields shared by customers AND admins.
+-- One row per auth user — created on sign-up regardless of role.
 -- ---------------------------------------------------------------------------
-CREATE TABLE public.customers (
+CREATE TABLE public.profiles (
   id         UUID                     NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   full_name  TEXT                     NOT NULL,
   email      TEXT                     NOT NULL UNIQUE,
@@ -76,13 +80,23 @@ CREATE TABLE public.customers (
 );
 
 -- ---------------------------------------------------------------------------
--- Admins (linked to auth.users)
+-- Customers (role table — references profiles)
+-- A row here means the user has the "customer" role.
+-- Identity data lives in profiles; no duplication.
+-- ---------------------------------------------------------------------------
+CREATE TABLE public.customers (
+  id         UUID                     NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- Admins (role table — references profiles)
+-- A row here means the user has the "admin" role.
+-- Identity data lives in profiles; no duplication.
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.admins (
-  id         UUID                     NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  full_name  TEXT                     NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+  id         UUID                     NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 -- ---------------------------------------------------------------------------
@@ -93,7 +107,7 @@ CREATE TABLE public.admins (
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.carts (
   id           UUID                     NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  customer_id  UUID                     REFERENCES public.customers(id) ON DELETE CASCADE,
+  customer_id  UUID                     REFERENCES public.customers(id) ON DELETE SET NULL,
   processed_by UUID                     REFERENCES public.admins(id) ON DELETE SET NULL,
   status       TEXT                     NOT NULL DEFAULT 'pending'
                                           CHECK (status IN ('pending', 'completed', 'cancelled')),
@@ -212,12 +226,9 @@ CREATE TRIGGER trg_products_updated_at
   BEFORE UPDATE ON public.products
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
-CREATE TRIGGER trg_customers_updated_at
-  BEFORE UPDATE ON public.customers
-  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
-CREATE TRIGGER trg_admins_updated_at
-  BEFORE UPDATE ON public.admins
+-- profiles is the single place where identity fields are updated
+CREATE TRIGGER trg_profiles_updated_at
+  BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 CREATE TRIGGER trg_carts_updated_at
@@ -418,7 +429,7 @@ SELECT c.id                                                           AS cart_id
 
 -- ---------------------------------------------------------------------------
 -- cart_summary
---   Carts joined with customer name, admin name, and refund status.
+--   Carts joined with customer profile, admin profile, and refund status.
 --   Use for order list / admin panel views — avoids joining 5 tables each time.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.cart_summary AS
@@ -428,15 +439,17 @@ SELECT c.id,
        c.notes,
        c.created_at,
        c.updated_at,
-       cu.full_name  AS customer_name,
-       cu.email      AS customer_email,
-       a.full_name   AS processed_by_name,
+       cp.full_name  AS customer_name,
+       cp.email      AS customer_email,
+       ap.full_name  AS processed_by_name,
        crs.refunded_amount,
        crs.net_amount,
        crs.refund_status
   FROM public.carts              c
   LEFT JOIN public.customers     cu  ON cu.id  = c.customer_id
+  LEFT JOIN public.profiles      cp  ON cp.id  = cu.id          -- customer identity
   LEFT JOIN public.admins        a   ON a.id   = c.processed_by
+  LEFT JOIN public.profiles      ap  ON ap.id  = a.id           -- admin identity
   LEFT JOIN public.cart_refund_status crs ON crs.cart_id = c.id;
 
 
@@ -477,7 +490,7 @@ SELECT r.id              AS refund_id,
        r.cart_id,
        r.refund_amount,
        r.created_at      AS refunded_at,
-       a.full_name       AS processed_by_name,
+       ap.full_name      AS processed_by_name,
        ri.id             AS refund_item_id,
        ri.sold_product_id,
        ri.quantity       AS refunded_quantity,
@@ -487,6 +500,7 @@ SELECT r.id              AS refund_id,
        p.name            AS product_name
   FROM public.refunds      r
   LEFT JOIN public.admins        a  ON a.id  = r.processed_by
+  LEFT JOIN public.profiles      ap ON ap.id = a.id           -- admin identity
   JOIN      public.refund_items  ri ON ri.refund_id = r.id
   LEFT JOIN public.sold_products sp ON sp.id = ri.sold_product_id
   LEFT JOIN public.products      p  ON p.id  = sp.product_id;
@@ -499,6 +513,7 @@ SELECT r.id              AS refund_id,
 ALTER TABLE public.categories          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.category_attributes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admins              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.carts               ENABLE ROW LEVEL SECURITY;
@@ -583,7 +598,27 @@ CREATE POLICY "products_delete"
 
 
 -- ---------------------------------------------------------------------------
--- Customers: users see own record, admins see all
+-- Profiles: users see and update their own record; admins see all
+-- ---------------------------------------------------------------------------
+CREATE POLICY "profiles_select"
+  ON public.profiles FOR SELECT
+  TO authenticated
+  USING (id = auth.uid() OR public.is_admin(auth.uid()));
+
+CREATE POLICY "profiles_insert"
+  ON public.profiles FOR INSERT
+  TO authenticated
+  WITH CHECK (id = auth.uid());
+
+CREATE POLICY "profiles_update"
+  ON public.profiles FOR UPDATE
+  TO authenticated
+  USING  (id = auth.uid() OR public.is_admin(auth.uid()))
+  WITH CHECK (id = auth.uid() OR public.is_admin(auth.uid()));
+
+
+-- ---------------------------------------------------------------------------
+-- Customers: role rows — users see own row; admins see all
 -- ---------------------------------------------------------------------------
 CREATE POLICY "customers_select"
   ON public.customers FOR SELECT
@@ -593,13 +628,12 @@ CREATE POLICY "customers_select"
 CREATE POLICY "customers_insert"
   ON public.customers FOR INSERT
   TO authenticated
-  WITH CHECK (id = auth.uid());
-
-CREATE POLICY "customers_update"
-  ON public.customers FOR UPDATE
-  TO authenticated
-  USING  (id = auth.uid() OR public.is_admin(auth.uid()))
   WITH CHECK (id = auth.uid() OR public.is_admin(auth.uid()));
+
+CREATE POLICY "customers_delete"
+  ON public.customers FOR DELETE
+  TO authenticated
+  USING (public.is_admin(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------

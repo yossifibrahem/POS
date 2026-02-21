@@ -43,10 +43,16 @@ interface CartItem {
   unit_price: number;
 }
 
-interface Customer {
-  id: string;
+interface Profile {
+  id?: string;
   full_name: string;
   email: string;
+}
+
+interface Customer {
+  id: string;
+  created_at: string;
+  profiles: Profile | null;
 }
 
 export default function NewSale() {
@@ -70,7 +76,7 @@ export default function NewSale() {
   useEffect(() => {
     Promise.all([
       supabase.from("products").select("*, categories(name)").order("name"),
-      supabase.from("customers").select("*").order("full_name"),
+      supabase.from("customers").select("*, profiles(full_name, email)").order("profiles(full_name)"),
       supabase.from("categories").select("*"),
     ]).then(([productsRes, customersRes, categoriesRes]) => {
       setProducts((productsRes.data || []) as Product[]);
@@ -313,7 +319,7 @@ export default function NewSale() {
                 <SelectContent>
                   <SelectItem value="walk-in">Walk-in Customer</SelectItem>
                   {filteredCustomers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.full_name} ({c.email})</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>{c.profiles?.full_name || "Unknown"} ({c.profiles?.email || "—"})</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

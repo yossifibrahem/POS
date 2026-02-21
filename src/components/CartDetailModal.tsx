@@ -22,8 +22,8 @@ type CartRow = {
   total: number; 
   created_at: string; 
   notes?: string | null; 
-  customers?: { full_name?: string; email?: string }; 
-  admins?: { id?: string; full_name?: string } 
+  customers?: { profiles?: { full_name?: string; email?: string } | null }; 
+  admins?: { profiles?: { full_name?: string } | null } 
 };
 
 type SoldItemRow = { 
@@ -55,7 +55,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
   const loadData = useCallback(async () => {
     if (!cartId) return;
     const [cartRes, itemsRes] = await Promise.all([
-      supabase.from("carts").select("*, customers(full_name, email), admins(full_name)").eq("id", cartId).single(),
+      supabase.from("carts").select("*, customers(profiles(full_name, email)), admins(profiles(full_name))").eq("id", cartId).single(),
       // Use cart_line_items view for line items with refund info
       supabase.from("cart_line_items").select("*").eq("cart_id", cartId),
     ]);
@@ -154,8 +154,8 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
             {/* Sale Info Card */}
             <div className="rounded-lg border bg-card p-4 space-y-2">
               <div className="grid gap-2 text-sm sm:grid-cols-2">
-                <p><span className="font-medium">Customer:</span> {cart.customers?.full_name || "Walk-in Customer"}</p>
-                <p><span className="font-medium">Processed by:</span> {cart.admins?.full_name || "Unknown"}</p>
+                <p><span className="font-medium">Customer:</span> {cart.customers?.profiles?.full_name || "Walk-in Customer"}</p>
+                <p><span className="font-medium">Processed by:</span> {cart.admins?.profiles?.full_name || "Unknown"}</p>
                 <p><span className="font-medium">Date:</span> {new Date(cart.created_at).toLocaleString()}</p>
                 <p><span className="font-medium">Total:</span> ${Number(cart.total).toFixed(2)}</p>
                 {cart.notes && <p className="sm:col-span-2"><span className="font-medium">Notes:</span> {cart.notes}</p>}

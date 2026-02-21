@@ -37,9 +37,9 @@ export function filterProducts<T extends { name: string; category_id: string | n
 }
 
 /**
- * Filter customers by search term (matches name or email)
+ * Filter customers by search term (matches name or email from joined profile)
  */
-export function filterCustomers<T extends { full_name: string; email: string }>(
+export function filterCustomers<T extends { profiles: { full_name: string; email: string } | null }>(
   customers: T[],
   search: string
 ): T[] {
@@ -47,8 +47,8 @@ export function filterCustomers<T extends { full_name: string; email: string }>(
   const term = search.toLowerCase();
   return customers.filter(
     (c) =>
-      c.full_name.toLowerCase().includes(term) ||
-      c.email.toLowerCase().includes(term)
+      c.profiles?.full_name.toLowerCase().includes(term) ||
+      c.profiles?.email.toLowerCase().includes(term)
   );
 }
 
