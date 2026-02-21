@@ -1,28 +1,28 @@
-# Remove Dead Code After Database Migration
+# State Persistence Fix - TODO
 
-## Tasks
-- [x] Fix CustomerDetailModal.tsx - remove dead 'refunded' status check
-- [x] Review types.ts - already correctly updated for new schema
-- [x] Clean up the empty cart.ts file
+## Problem
+Opening a new tab or refreshing the page causes the React app to "restart" - all state is lost and auth check causes loading flash.
 
-## Summary of Changes
+## Root Causes
+1. React state (useState) is ephemeral - lost on page refresh
+2. AuthProvider shows loading spinner while checking session
+3. No UI state persistence for cart, filters, forms
+4. ProtectedRoute redirects before auth state is confirmed
 
-### 1. CustomerDetailModal.tsx
-- Removed dead code checking for `cart.status === 'refunded'` 
-- Cart status can only be 'pending', 'completed', or 'cancelled' per migration
-- Refund status is now derived from `cart_refund_status` view
+## Implementation Plan
 
-### 2. cart.ts
-- Deleted empty file that only contained comments about the new refund model
+- [x] Create `usePersistentState` hook for localStorage/sessionStorage persistence
+- [x] Update `useAuth.tsx` to cache auth state and reduce loading flash
+- [x] Update `ProtectedRoute.tsx` to use cached auth state for smoother transitions
+- [x] Test persistence across tab refreshes and new tabs
+- [x] Apply persistent state to critical UI state (cart, filters, forms)
 
-### 3. types.ts
-- Already correctly synced with migration - no changes needed
-- `sold_products` table properly has no `refunded_quantity` or `status` columns
-- `refunds` and `refund_items` tables properly defined
-- Views correctly calculate refund data from ledger tables
-
-## Migration Context
-Database migration replaced mutating refund pattern with immutable refund ledger:
-- Removed `refunded_quantity` and `status` from `sold_products` table
-- Removed 'refunded' from `carts.status` CHECK constraint
-- Cart status is never set to 'refunded' - refund state is derived from refunds table and views
+## Files Modified
+1. `src/hooks/usePersistentState.ts` - NEW FILE ✓
+2. `src/hooks/useAuth.tsx` - UPDATE ✓
+3. `src/components/ProtectedRoute.tsx` - UPDATE ✓
+4. `src/pages/dashboard/NewSale.tsx` - Cart, search, filter, sort, customer, notes persistence ✓
+5. `src/pages/dashboard/Products.tsx` - Search, filter, sort persistence ✓
+6. `src/pages/dashboard/Categories.tsx` - Search persistence ✓
+7. `src/pages/dashboard/Customers.tsx` - Search persistence ✓
+8. `src/pages/dashboard/SalesHistory.tsx` - Search, date range, hide refunded persistence ✓

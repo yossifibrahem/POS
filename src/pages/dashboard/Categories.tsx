@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePersistentState } from "@/hooks/usePersistentState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +32,7 @@ export default function Categories() {
   const [attributesExpanded, setAttributesExpanded] = useState(false);
   const [editingAttribute, setEditingAttribute] = useState<CategoryAttribute | null>(null);
   const [deleteAttributeId, setDeleteAttributeId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState({ key: "categories_search", defaultValue: "" });
 
   const load = async () => {
     await withLoading(setLoading, async () => {

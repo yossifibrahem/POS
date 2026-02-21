@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { useCachedAuthState } from "./usePersistentState";
 
 interface AuthContextType {
   user: User | null;
@@ -23,8 +24,10 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { cachedUser, updateCachedUser, isCacheValid, isHydrated } = useCachedAuthState();
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Start with loading true, but will check cache immediately
   const [loading, setLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(true);
   const [rememberMe, setRememberMeState] = useState(() => {
@@ -37,16 +40,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRememberMeState(value);
   };
 
-  const checkAdmin = async (userId: string) => {
+  const checkAdmin = useCallback(async (userId: string) => {
     const { data } = await supabase.rpc("is_admin", { _user_id: userId });
     setIsAdmin(!!data);
-  };
+  }, []);
+
+  // Check cache immediately on mount to reduce loading flash
+  useEffect(() => {
+    if (isHydrated && cachedUser && isCacheValid()) {
+      // We have a valid cache, but still need to verify with server
+      // Don't set loading to false yet, but we could optimistically show UI
+    }
+  }, [isHydrated, cachedUser, isCacheValid]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         const u = session?.user ?? null;
         setUser(u);
+        // Update cache when auth state changes
+        if (u) {
+          updateCachedUser({ id: u.id, email: u.email });
+        } else {
+          updateCachedUser(null);
+        }
         setLoading(false);
         if (u) {
           setAdminLoading(true);
@@ -61,6 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null;
       setUser(u);
+      // Update cache when session is retrieved
+      if (u) {
+        updateCachedUser({ id: u.id, email: u.email });
+      } else {
+        updateCachedUser(null);
+      }
       setLoading(false);
       if (u) {
         setAdminLoading(true);
@@ -71,10 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [checkAdmin, updateCachedUser]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    updateCachedUser(null);
     setUser(null);
     setIsAdmin(false);
   };

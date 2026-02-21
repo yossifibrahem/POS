@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePersistentState } from "@/hooks/usePersistentState";
 import { CartDetailModal } from "@/components/CartDetailModal";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -40,14 +41,14 @@ interface Cart {
 export default function SalesHistory() {
   const [loading, setLoading] = useState(true);
   const [carts, setCarts] = useState<Cart[]>([]);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [hideRefunded, setHideRefunded] = useState(true);
+  const [dateFrom, setDateFrom] = usePersistentState({ key: "saleshistory_dateFrom", defaultValue: "" });
+  const [dateTo, setDateTo] = usePersistentState({ key: "saleshistory_dateTo", defaultValue: "" });
+  const [hideRefunded, setHideRefunded] = usePersistentState({ key: "saleshistory_hideRefunded", defaultValue: true });
   const [deleteCartId, setDeleteCartId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState({ key: "saleshistory_search", defaultValue: "" });
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePersistentState } from "@/hooks/usePersistentState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,7 @@ interface Customer {
 export default function Customers() {
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState({ key: "customers_search", defaultValue: "" });
   const [promoteTarget, setPromoteTarget] = useState<Customer | null>(null);
   const [demoteTarget, setDemoteTarget] = useState<Customer | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);

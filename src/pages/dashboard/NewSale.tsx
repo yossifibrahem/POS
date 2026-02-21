@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { usePersistentState } from "@/hooks/usePersistentState";
 import type { Json } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,13 +56,16 @@ export default function NewSale() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("all");
-  const [sort, setSort] = useState<SortOptions>({ field: "name", direction: "asc" });
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [customerId, setCustomerId] = useState("walk-in");
+  const [search, setSearch] = usePersistentState({ key: "newsale_search", defaultValue: "" });
+  const [filterCat, setFilterCat] = usePersistentState({ key: "newsale_filterCat", defaultValue: "all" });
+  const [sort, setSort] = usePersistentState<SortOptions>({ 
+    key: "newsale_sort", 
+    defaultValue: { field: "name", direction: "asc" } 
+  });
+  const [cart, setCart] = usePersistentState<CartItem[]>({ key: "newsale_cart", defaultValue: [] });
+  const [customerId, setCustomerId] = usePersistentState({ key: "newsale_customerId", defaultValue: "walk-in" });
   const [customerSearch, setCustomerSearch] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = usePersistentState({ key: "newsale_notes", defaultValue: "" });
   const [processing, setProcessing] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
@@ -160,6 +164,9 @@ export default function NewSale() {
       setCart([]);
       setCustomerId("walk-in");
       setNotes("");
+      setSearch("");
+      setFilterCat("all");
+      setSort({ field: "name", direction: "asc" });
       setCartOpen(false);
 
     } catch (e: unknown) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePersistentState } from "@/hooks/usePersistentState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,9 +42,12 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("all");
-  const [sort, setSort] = useState<SortOptions>({ field: "created_at", direction: "desc" });
+  const [search, setSearch] = usePersistentState({ key: "products_search", defaultValue: "" });
+  const [filterCat, setFilterCat] = usePersistentState({ key: "products_filterCat", defaultValue: "all" });
+  const [sort, setSort] = usePersistentState<SortOptions>({ 
+    key: "products_sort", 
+    defaultValue: { field: "created_at", direction: "desc" } 
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Product | null>(null);
