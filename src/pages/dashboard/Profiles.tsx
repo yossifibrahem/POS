@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { canManageAdmins } from "@/lib/permissions";
+import type { AdminLevel } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
@@ -23,9 +27,11 @@ interface Profile {
   updated_at: string;
   is_admin: boolean;
   is_customer: boolean;
+  admin_level: AdminLevel;
 }
 
 export default function Profiles() {
+  const { adminLevel: currentAdminLevel } = useAuth();
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
@@ -34,6 +40,7 @@ export default function Profiles() {
   const [toggleAdminId, setToggleAdminId] = useState<string | null>(null);
   const [toggleAdminName, setToggleAdminName] = useState("");
   const [toggleAdminCurrentStatus, setToggleAdminCurrentStatus] = useState(false);
+  const [toggleAdminLevel, setToggleAdminLevel] = useState<AdminLevel>('low');
   const [editing, setEditing] = useState<Profile | null>(null);
   const [form, setForm] = useState({ full_name: "", email: "", phone: "" });
   const [saving, setSaving] = useState(false);
@@ -51,10 +58,10 @@ export default function Profiles() {
         return;
       }
 
-      // Fetch all admins to determine admin status
+      // Fetch all admins to determine admin status and level
       const { data: adminsData, error: adminsError } = await supabase
         .from("admins")
-        .select("id");
+        .select("id, level");
 
       if (adminsError) {
         handleError(adminsError, "Failed to load admin data");
@@ -71,13 +78,14 @@ export default function Profiles() {
         return;
       }
 
-      const adminIds = new Set(adminsData?.map(a => a.id) || []);
+      const adminMap = new Map(adminsData?.map(a => [a.id, a.level as AdminLevel]) || []);
       const customerIds = new Set(customersData?.map(c => c.id) || []);
 
       const combinedProfiles: Profile[] = (profilesData || []).map(p => ({
         ...p,
-        is_admin: adminIds.has(p.id),
+        is_admin: adminMap.has(p.id),
         is_customer: customerIds.has(p.id),
+        admin_level: adminMap.get(p.id) || null,
       }));
 
       setProfiles(combinedProfiles);
@@ -163,30 +171,46 @@ export default function Profiles() {
         load();
       }
     } else {
-      // Add to admins (promote)
+      // Add to admins (promote) with selected level
       const { error } = await supabase
         .from("admins")
-        .insert({ id: toggleAdminId });
+        .insert({ id: toggleAdminId, level: toggleAdminLevel });
 
       if (error) {
         handleError(error, "Failed to grant admin privileges");
       } else {
-        handleSuccess("User promoted to admin");
+        handleSuccess(`User promoted to admin (${toggleAdminLevel})`);
         load();
       }
     }
     setToggleAdminId(null);
   };
 
+  const handleUpdateAdminLevel = async (profileId: string, newLevel: AdminLevel) => {
+    const { error } = await supabase
+      .from("admins")
+      .update({ level: newLevel })
+      .eq("id", profileId);
+
+    if (error) {
+      handleError(error, "Failed to update admin level");
+    } else {
+      handleSuccess("Admin level updated");
+      load();
+    }
+  };
+
   const confirmToggleAdmin = (profile: Profile) => {
     setToggleAdminId(profile.id);
     setToggleAdminName(profile.full_name);
     setToggleAdminCurrentStatus(profile.is_admin);
+    setToggleAdminLevel(profile.admin_level || 'low');
   };
 
   const getRoleBadge = (profile: Profile) => {
     if (profile.is_admin) {
-      return <Badge variant="default" className="bg-primary"><Shield className="h-3 w-3 mr-1" /> Admin</Badge>;
+      const levelLabel = profile.admin_level ? ` · ${profile.admin_level.charAt(0).toUpperCase() + profile.admin_level.slice(1)}` : '';
+      return <Badge variant="default" className="bg-primary"><Shield className="h-3 w-3 mr-1" /> Admin{levelLabel}</Badge>;
     }
     if (profile.is_customer) {
       return <Badge variant="secondary"><User className="h-3 w-3 mr-1" /> Customer</Badge>;
@@ -261,18 +285,20 @@ export default function Profiles() {
                   </div>
                   <Separator />
                   <div className="flex justify-end gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={(e) => { e.stopPropagation(); confirmToggleAdmin(profile); }}
-                      title={profile.is_admin ? "Remove admin privileges" : "Promote to admin"}
-                    >
-                      {profile.is_admin ? (
-                        <ShieldX className="h-4 w-4 text-destructive" />
-                      ) : (
-                        <ShieldCheck className="h-4 w-4 text-primary" />
-                      )}
-                    </Button>
+                    {canManageAdmins(currentAdminLevel) && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={(e) => { e.stopPropagation(); confirmToggleAdmin(profile); }}
+                        title={profile.is_admin ? "Remove admin privileges" : "Promote to admin"}
+                      >
+                        {profile.is_admin ? (
+                          <ShieldX className="h-4 w-4 text-destructive" />
+                        ) : (
+                          <ShieldCheck className="h-4 w-4 text-primary" />
+                        )}
+                      </Button>
+                    )}
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -366,15 +392,75 @@ export default function Profiles() {
             <AlertDialogDescription>
               {toggleAdminCurrentStatus 
                 ? `Are you sure you want to remove admin privileges from ${toggleAdminName}? They will no longer have access to the admin dashboard.`
-                : `Are you sure you want to promote ${toggleAdminName} to admin? They will have full access to manage the store.`
+                : `Are you sure you want to promote ${toggleAdminName} to admin? They will have access based on the selected level.`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleToggleAdmin}>
-              {toggleAdminCurrentStatus ? "Remove Admin" : "Promote to Admin"}
-            </AlertDialogAction>
+          
+          {/* Level selector for promotion - only for high admins */}
+          {!toggleAdminCurrentStatus && canManageAdmins(currentAdminLevel) && (
+            <div className="py-4">
+              <Label className="mb-2 block">Admin Level</Label>
+              <Select 
+                value={toggleAdminLevel || 'low'} 
+                onValueChange={(v) => setToggleAdminLevel(v as AdminLevel)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select level..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="high">High - Full Access</SelectItem>
+                  <SelectItem value="med">Med - No Cost/Profit View</SelectItem>
+                  <SelectItem value="low">Low - Sales Only</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-2">
+                Default is Low. Only High admins can change levels.
+              </p>
+            </div>
+          )}
+          
+          {/* Level editor for existing admins - only for high admins */}
+          {toggleAdminCurrentStatus && canManageAdmins(currentAdminLevel) && (
+            <div className="py-4">
+              <Label className="mb-2 block">Admin Level</Label>
+              <Select 
+                value={toggleAdminLevel || 'low'} 
+                onValueChange={(v) => setToggleAdminLevel(v as AdminLevel)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select level..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="high">High - Full Access</SelectItem>
+                  <SelectItem value="med">Med - No Cost/Profit View</SelectItem>
+                  <SelectItem value="low">Low - Sales Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel onClick={() => setToggleAdminId(null)}>Cancel</AlertDialogCancel>
+            {toggleAdminCurrentStatus && canManageAdmins(currentAdminLevel) ? (
+              <>
+                <AlertDialogAction 
+                  onClick={() => toggleAdminId && handleUpdateAdminLevel(toggleAdminId, toggleAdminLevel)}
+                >
+                  Update Level
+                </AlertDialogAction>
+                <AlertDialogAction 
+                  onClick={handleToggleAdmin}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Revoke Admin
+                </AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction onClick={handleToggleAdmin}>
+                {toggleAdminCurrentStatus ? "Remove Admin" : "Promote to Admin"}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { canManageRefunds } from "@/lib/permissions";
 import { CartDetailModal } from "@/components/CartDetailModal";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -19,7 +21,6 @@ import { withLoading, handleError, handleSuccess } from "@/lib/api";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { filterCartsByProduct } from "@/lib/filters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
-import { useAuth } from "@/hooks/useAuth";
 
 interface Cart {
   id: string;
@@ -39,7 +40,7 @@ interface Cart {
 
 
 export default function SalesHistory() {
-  const { user } = useAuth();
+  const { user, adminLevel } = useAuth();
   const [loading, setLoading] = useState(true);
   const [carts, setCarts] = useState<Cart[]>([]);
   const [dateFrom, setDateFrom] = useState("");
@@ -179,7 +180,12 @@ export default function SalesHistory() {
   return (
     <div className="p-4 md:p-6">
       <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-2">
-        <h1 className="text-2xl font-bold">Sales History</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Sales History</h1>
+          {adminLevel === 'low' && (
+            <p className="text-sm text-muted-foreground">Showing your sales only</p>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Hide refunded</span>
           <Switch
@@ -269,8 +275,8 @@ export default function SalesHistory() {
                 </div>
               )}
               
-              {/* Refund button - only show for non-fully-refunded carts */}
-              {c.refund_status !== 'fully_refunded' && (
+              {/* Refund button - only show for non-fully-refunded carts and admins with refund permission */}
+              {c.refund_status !== 'fully_refunded' && canManageRefunds(adminLevel) && (
                 <div className="flex justify-end mt-2 pt-2 border-t border-dashed">
                   <Button
                     variant="ghost"

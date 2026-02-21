@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useSignOut } from "@/hooks/useSignOut";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -16,8 +17,9 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut } from "lucide-react";
+import { canAccessDashboard } from "@/lib/permissions";
 
-const navItems = [
+const allNavItems = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
   { title: "Products", url: "/dashboard/products", icon: Package },
   { title: "Categories", url: "/dashboard/categories", icon: Tags },
@@ -27,7 +29,14 @@ const navItems = [
 ];
 
 export default function DashboardLayout() {
+  const { adminLevel } = useAuth();
   const handleSignOut = useSignOut();
+
+  // Filter nav items based on admin level
+  // Low admins only see New Sale and Sales History
+  const navItems = canAccessDashboard(adminLevel) 
+    ? allNavItems 
+    : allNavItems.filter(item => item.title === "New Sale" || item.title === "Sales History");
 
   return (
     <SidebarProvider>

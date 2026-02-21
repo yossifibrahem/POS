@@ -18,14 +18,17 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          level: 'high' | 'med' | 'low'
         }
         Insert: {
           created_at?: string
           id: string
+          level?: 'high' | 'med' | 'low'
         }
         Update: {
           created_at?: string
           id?: string
+          level?: 'high' | 'med' | 'low'
         }
         Relationships: [
           {
@@ -527,6 +530,9 @@ export type Database = {
     }
     Functions: {
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      get_admin_level: { Args: { _user_id: string }; Returns: string }
+      is_admin_high: { Args: { _user_id: string }; Returns: boolean }
+      is_admin_med_or_above: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

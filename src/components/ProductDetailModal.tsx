@@ -50,6 +50,7 @@ interface ProductDetailModalProps {
   context: "products" | "newsale";
   onEdit?: (product: Product) => void;
   onAddToCart?: (product: Product) => void;
+  showCost?: boolean;
 }
 
 export function ProductDetailModal({
@@ -59,6 +60,7 @@ export function ProductDetailModal({
   context,
   onEdit,
   onAddToCart,
+  showCost = true,
 }: ProductDetailModalProps) {
   const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>([]);
 
@@ -150,7 +152,7 @@ export function ProductDetailModal({
           <div className="space-y-4">
             <h4 className="text-sm font-medium text-muted-foreground">Pricing</h4>
             
-            <div className="grid grid-cols-3 gap-6">
+            <div className={`grid gap-6 ${showCost ? 'grid-cols-3' : 'grid-cols-1'}`}>
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <DollarSign className="h-5 w-5" />
@@ -159,40 +161,46 @@ export function ProductDetailModal({
                 <p className="text-xl sm:text-2xl font-bold text-primary">{formatCurrency(product.price)}</p>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Coins className="h-5 w-5" />
-                  <span>Cost</span>
-                </div>
-                <p className="text-xl sm:text-2xl font-bold">{formatCurrency(product.cost)}</p>
-              </div>
+              {showCost && (
+                <>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Coins className="h-5 w-5" />
+                      <span>Cost</span>
+                    </div>
+                    <p className="text-xl sm:text-2xl font-bold">{formatCurrency(product.cost)}</p>
+                  </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Package className="h-5 w-5" />
-                  <span>Profit</span>
-                </div>
-                <p className={`text-xl sm:text-2xl font-bold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {formatCurrency(profit)}
-                </p>
-              </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Package className="h-5 w-5" />
+                      <span>Profit</span>
+                    </div>
+                    <p className={`text-xl sm:text-2xl font-bold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {formatCurrency(profit)}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Profit Info */}
-            <div className="rounded-lg bg-muted p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Profit per unit:</span>
-                <span className={`font-semibold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {formatCurrency(profit)}
-                </span>
+            {/* Profit Info - Only show for high admins */}
+            {showCost && (
+              <div className="rounded-lg bg-muted p-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Profit per unit:</span>
+                  <span className={`font-semibold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {formatCurrency(profit)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm mt-1">
+                  <span className="text-muted-foreground">Profit margin:</span>
+                  <span className={`font-semibold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {profitMargin}%
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-sm mt-1">
-                <span className="text-muted-foreground">Profit margin:</span>
-                <span className={`font-semibold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {profitMargin}%
-                </span>
-              </div>
-            </div>
+            )}
           </div>
 
           <Separator />

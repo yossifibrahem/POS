@@ -32,12 +32,20 @@ const App = () => (
             <Route path="/dashboard" element={
               <ProtectedRoute adminOnly><DashboardLayout /></ProtectedRoute>
             }>
-              <Route index element={<Overview />} />
-              <Route path="products" element={<Products />} />
-              <Route path="categories" element={<Categories />} />
+              <Route index element={
+                <ProtectedRoute requiredLevel="med"><Overview /></ProtectedRoute>
+              } />
+              <Route path="products" element={
+                <ProtectedRoute requiredLevel="med"><Products /></ProtectedRoute>
+              } />
+              <Route path="categories" element={
+                <ProtectedRoute requiredLevel="med"><Categories /></ProtectedRoute>
+              } />
               <Route path="sales" element={<NewSale />} />
               <Route path="sales/history" element={<SalesHistory />} />
-              <Route path="profiles" element={<Profiles />} />
+              <Route path="profiles" element={
+                <ProtectedRoute requiredLevel="med"><Profiles /></ProtectedRoute>
+              } />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

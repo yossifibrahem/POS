@@ -1,5 +1,7 @@
 -- =============================================================================
--- COMPLETE DATABASE SCHEMA
+-- COMPLETE DATABASE SCHEMA (v2)
+-- Includes: admin level hierarchy (high / med / low)
+--
 -- Refund model: immutable refund ledger (refunds + refund_items)
 -- Identity model: shared `profiles` table — customers and admins both reference
 --                 it, so id / full_name / email / phone are never duplicated.
@@ -93,11 +95,21 @@ CREATE TABLE public.customers (
 -- Admins (role table — references profiles)
 -- A row here means the user has the "admin" role.
 -- Identity data lives in profiles; no duplication.
+--
+-- level:
+--   'high' → Full access to everything (default for existing/new admins)
+--   'med'  → Full access except cannot see product cost or profit figures
+--   'low'  → Can only create new sales and view their own sales history
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.admins (
   id         UUID                     NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+  level      TEXT                     NOT NULL DEFAULT 'high'
+                                        CHECK (level IN ('high', 'med', 'low')),
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
+
+COMMENT ON COLUMN public.admins.level IS
+  'high = full access | med = no cost/profit visibility | low = new-sale + own history only';
 
 -- ---------------------------------------------------------------------------
 -- Carts
@@ -182,11 +194,17 @@ CREATE INDEX idx_refunds_processed_by             ON public.refunds(processed_by
 CREATE INDEX idx_refund_items_refund_id           ON public.refund_items(refund_id);
 CREATE INDEX idx_refund_items_sold_product_id     ON public.refund_items(sold_product_id);
 
+CREATE INDEX idx_admins_level                     ON public.admins(level);
+
 
 -- =============================================================================
--- HELPER FUNCTION  (SECURITY DEFINER prevents RLS recursion)
+-- HELPER FUNCTIONS  (SECURITY DEFINER prevents RLS recursion)
 -- =============================================================================
 
+-- ---------------------------------------------------------------------------
+-- is_admin  — TRUE for any admin regardless of level.
+-- Kept stable so all existing RLS policies and application code work unchanged.
+-- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.is_admin(_user_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -196,6 +214,54 @@ SET search_path = public
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.admins WHERE id = _user_id
+  );
+$$;
+
+-- ---------------------------------------------------------------------------
+-- get_admin_level  — Returns 'high' | 'med' | 'low' | NULL.
+-- Called once on login by the frontend to populate the auth context.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_admin_level(_user_id UUID)
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT level FROM public.admins WHERE id = _user_id;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- is_admin_high  — TRUE only for high-level admins.
+-- Used in policies that gate: promoting admins, editing other users' profiles,
+-- deleting customer role rows.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_admin_high(_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.admins WHERE id = _user_id AND level = 'high'
+  );
+$$;
+
+-- ---------------------------------------------------------------------------
+-- is_admin_med_or_above  — TRUE for high OR med admins.
+-- Used in policies that gate: product/category writes, refunds, cart updates,
+-- viewing all carts, managing profiles, managing other admins.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_admin_med_or_above(_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.admins WHERE id = _user_id AND level IN ('high', 'med')
   );
 $$;
 
@@ -226,7 +292,6 @@ CREATE TRIGGER trg_products_updated_at
   BEFORE UPDATE ON public.products
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- profiles is the single place where identity fields are updated
 CREATE TRIGGER trg_profiles_updated_at
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -297,11 +362,9 @@ CREATE TRIGGER trg_manage_stock_on_cart_status_change
 --   product referenced by that sold_products row.
 --
 --   App flow for a refund:
---     1. INSERT INTO refunds  (cart_id, processed_by, reason, refund_amount)
+--     1. INSERT INTO refunds  (cart_id, processed_by, refund_amount)
 --     2. INSERT INTO refund_items (refund_id, sold_product_id, quantity, unit_price)
 --        -- one row per returned line item; trigger handles restocking
---
---   No further coordination needed between cart status and line items.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.restock_on_refund_item()
@@ -429,8 +492,9 @@ SELECT c.id                                                           AS cart_id
 
 -- ---------------------------------------------------------------------------
 -- cart_summary
---   Carts joined with customer profile, admin profile, and refund status.
---   Use for order list / admin panel views — avoids joining 5 tables each time.
+--   Carts joined with customer profile, admin profile + level, refund status.
+--   Includes admin_level so the UI can decide whether to show profit columns
+--   without a separate query.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.cart_summary AS
 SELECT c.id,
@@ -442,14 +506,15 @@ SELECT c.id,
        cp.full_name  AS customer_name,
        cp.email      AS customer_email,
        ap.full_name  AS processed_by_name,
+       a.level       AS processed_by_level,
        crs.refunded_amount,
        crs.net_amount,
        crs.refund_status
   FROM public.carts              c
   LEFT JOIN public.customers     cu  ON cu.id  = c.customer_id
-  LEFT JOIN public.profiles      cp  ON cp.id  = cu.id          -- customer identity
+  LEFT JOIN public.profiles      cp  ON cp.id  = cu.id
   LEFT JOIN public.admins        a   ON a.id   = c.processed_by
-  LEFT JOIN public.profiles      ap  ON ap.id  = a.id           -- admin identity
+  LEFT JOIN public.profiles      ap  ON ap.id  = a.id
   LEFT JOIN public.cart_refund_status crs ON crs.cart_id = c.id;
 
 
@@ -457,7 +522,6 @@ SELECT c.id,
 -- cart_line_items
 --   sold_products joined with product name and total refunded quantity
 --   aggregated across all refund events for that line item.
---   Use for order detail pages, receipts, and any "bought X, returned Y" UI.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.cart_line_items AS
 SELECT sp.id              AS sold_product_id,
@@ -469,6 +533,7 @@ SELECT sp.id              AS sold_product_id,
        (sp.quantity - COALESCE(ri_agg.refunded_quantity, 0)) * sp.unit_price AS net_line_total,
        p.id               AS product_id,
        p.name             AS product_name,
+       p.cost             AS product_cost,       -- frontend hides this for med/low
        p.attributes       AS product_attributes
   FROM public.sold_products sp
   LEFT JOIN public.products p ON p.id = sp.product_id
@@ -483,7 +548,6 @@ SELECT sp.id              AS sold_product_id,
 -- ---------------------------------------------------------------------------
 -- refund_detail
 --   refunds joined with refund_items, product name, and processing admin.
---   Use for refund history panels and reporting on what was returned and when.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.refund_detail AS
 SELECT r.id              AS refund_id,
@@ -491,6 +555,7 @@ SELECT r.id              AS refund_id,
        r.refund_amount,
        r.created_at      AS refunded_at,
        ap.full_name      AS processed_by_name,
+       a.level           AS processed_by_level,
        ri.id             AS refund_item_id,
        ri.sold_product_id,
        ri.quantity       AS refunded_quantity,
@@ -500,10 +565,26 @@ SELECT r.id              AS refund_id,
        p.name            AS product_name
   FROM public.refunds      r
   LEFT JOIN public.admins        a  ON a.id  = r.processed_by
-  LEFT JOIN public.profiles      ap ON ap.id = a.id           -- admin identity
+  LEFT JOIN public.profiles      ap ON ap.id = a.id
   JOIN      public.refund_items  ri ON ri.refund_id = r.id
   LEFT JOIN public.sold_products sp ON sp.id = ri.sold_product_id
   LEFT JOIN public.products      p  ON p.id  = sp.product_id;
+
+
+-- ---------------------------------------------------------------------------
+-- admin_profiles
+--   Convenience view joining admins with their profile data and level.
+--   Use in the Profiles management page.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE VIEW public.admin_profiles AS
+SELECT a.id,
+       a.level,
+       a.created_at AS admin_since,
+       p.full_name,
+       p.email,
+       p.phone
+  FROM public.admins   a
+  JOIN public.profiles p ON p.id = a.id;
 
 
 -- =============================================================================
@@ -523,7 +604,7 @@ ALTER TABLE public.refund_items        ENABLE ROW LEVEL SECURITY;
 
 
 -- ---------------------------------------------------------------------------
--- Categories: public read, admin write
+-- Categories: public read, med/high write
 -- ---------------------------------------------------------------------------
 CREATE POLICY "categories_select"
   ON public.categories FOR SELECT
@@ -533,22 +614,22 @@ CREATE POLICY "categories_select"
 CREATE POLICY "categories_insert"
   ON public.categories FOR INSERT
   TO authenticated
-  WITH CHECK (public.is_admin(auth.uid()));
+  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
 
 CREATE POLICY "categories_update"
   ON public.categories FOR UPDATE
   TO authenticated
-  USING  (public.is_admin(auth.uid()))
-  WITH CHECK (public.is_admin(auth.uid()));
+  USING  (public.is_admin_med_or_above(auth.uid()))
+  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
 
 CREATE POLICY "categories_delete"
   ON public.categories FOR DELETE
   TO authenticated
-  USING (public.is_admin(auth.uid()));
+  USING (public.is_admin_med_or_above(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------
--- Category Attributes: public read, admin write
+-- Category Attributes: public read, med/high write
 -- ---------------------------------------------------------------------------
 CREATE POLICY "category_attributes_select"
   ON public.category_attributes FOR SELECT
@@ -558,22 +639,23 @@ CREATE POLICY "category_attributes_select"
 CREATE POLICY "category_attributes_insert"
   ON public.category_attributes FOR INSERT
   TO authenticated
-  WITH CHECK (public.is_admin(auth.uid()));
+  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
 
 CREATE POLICY "category_attributes_update"
   ON public.category_attributes FOR UPDATE
   TO authenticated
-  USING  (public.is_admin(auth.uid()))
-  WITH CHECK (public.is_admin(auth.uid()));
+  USING  (public.is_admin_med_or_above(auth.uid()))
+  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
 
 CREATE POLICY "category_attributes_delete"
   ON public.category_attributes FOR DELETE
   TO authenticated
-  USING (public.is_admin(auth.uid()));
+  USING (public.is_admin_med_or_above(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------
--- Products: active products publicly readable, admin full write
+-- Products: active products publicly readable; all admins read all;
+--           writes restricted to med/high
 -- ---------------------------------------------------------------------------
 CREATE POLICY "products_select"
   ON public.products FOR SELECT
@@ -583,22 +665,24 @@ CREATE POLICY "products_select"
 CREATE POLICY "products_insert"
   ON public.products FOR INSERT
   TO authenticated
-  WITH CHECK (public.is_admin(auth.uid()));
+  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
 
 CREATE POLICY "products_update"
   ON public.products FOR UPDATE
   TO authenticated
-  USING  (public.is_admin(auth.uid()))
-  WITH CHECK (public.is_admin(auth.uid()));
+  USING  (public.is_admin_med_or_above(auth.uid()))
+  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
 
 CREATE POLICY "products_delete"
   ON public.products FOR DELETE
   TO authenticated
-  USING (public.is_admin(auth.uid()));
+  USING (public.is_admin_med_or_above(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------
--- Profiles: users see and update their own record; admins see all
+-- Profiles: users see and update their own record
+--           any admin can read all profiles
+--           only high admins can update others' profiles
 -- ---------------------------------------------------------------------------
 CREATE POLICY "profiles_select"
   ON public.profiles FOR SELECT
@@ -613,12 +697,13 @@ CREATE POLICY "profiles_insert"
 CREATE POLICY "profiles_update"
   ON public.profiles FOR UPDATE
   TO authenticated
-  USING  (id = auth.uid() OR public.is_admin(auth.uid()))
-  WITH CHECK (id = auth.uid() OR public.is_admin(auth.uid()));
+  USING  (id = auth.uid() OR public.is_admin_high(auth.uid()))
+  WITH CHECK (id = auth.uid() OR public.is_admin_high(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------
--- Customers: role rows — users see own row; admins see all
+-- Customers: users see own row; all admins see all
+--            only high admins can delete customer rows
 -- ---------------------------------------------------------------------------
 CREATE POLICY "customers_select"
   ON public.customers FOR SELECT
@@ -633,11 +718,13 @@ CREATE POLICY "customers_insert"
 CREATE POLICY "customers_delete"
   ON public.customers FOR DELETE
   TO authenticated
-  USING (public.is_admin(auth.uid()));
+  USING (public.is_admin_high(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------
--- Admins: admins only
+-- Admins: all admins can read the table (to see roles/levels)
+--         only high admins can insert or delete admin rows
+--         (level updates use the update path handled by high admin in the UI)
 -- ---------------------------------------------------------------------------
 CREATE POLICY "admins_select"
   ON public.admins FOR SELECT
@@ -647,22 +734,35 @@ CREATE POLICY "admins_select"
 CREATE POLICY "admins_insert"
   ON public.admins FOR INSERT
   TO authenticated
-  WITH CHECK (public.is_admin(auth.uid()));
+  WITH CHECK (public.is_admin_high(auth.uid()));
+
+CREATE POLICY "admins_update"
+  ON public.admins FOR UPDATE
+  TO authenticated
+  USING  (public.is_admin_high(auth.uid()))
+  WITH CHECK (public.is_admin_high(auth.uid()));
 
 CREATE POLICY "admins_delete"
   ON public.admins FOR DELETE
   TO authenticated
-  USING (public.is_admin(auth.uid()));
+  USING (public.is_admin_high(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------
--- Carts: users see own carts, admins full access
--- Walk-in carts (customer_id IS NULL) are visible to admins only.
+-- Carts:
+--   SELECT — customers see own carts; med/high see all; low see only their own
+--   INSERT — all admin levels (low admins must be able to create sales)
+--   UPDATE — med/high only (status changes, cart editing)
+--   DELETE — med/high only
 -- ---------------------------------------------------------------------------
 CREATE POLICY "carts_select"
   ON public.carts FOR SELECT
   TO authenticated
-  USING (customer_id = auth.uid() OR public.is_admin(auth.uid()));
+  USING (
+    customer_id = auth.uid()
+    OR public.is_admin_med_or_above(auth.uid())
+    OR (public.is_admin(auth.uid()) AND processed_by = auth.uid())
+  );
 
 CREATE POLICY "carts_insert"
   ON public.carts FOR INSERT
@@ -672,17 +772,21 @@ CREATE POLICY "carts_insert"
 CREATE POLICY "carts_update"
   ON public.carts FOR UPDATE
   TO authenticated
-  USING  (public.is_admin(auth.uid()))
-  WITH CHECK (public.is_admin(auth.uid()));
+  USING  (public.is_admin_med_or_above(auth.uid()))
+  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
 
 CREATE POLICY "carts_delete"
   ON public.carts FOR DELETE
   TO authenticated
-  USING (public.is_admin(auth.uid()));
+  USING (public.is_admin_med_or_above(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------
--- Sold Products: users see own (via cart), admins full access
+-- Sold Products:
+--   SELECT — users see items on their own carts; SELECT via cart JOIN
+--            naturally limits low admins to their own carts
+--   INSERT — all admin levels (required to build a sale)
+--   UPDATE/DELETE — med/high only
 -- ---------------------------------------------------------------------------
 CREATE POLICY "sold_products_select"
   ON public.sold_products FOR SELECT
@@ -691,7 +795,11 @@ CREATE POLICY "sold_products_select"
     EXISTS (
       SELECT 1 FROM public.carts
        WHERE carts.id = sold_products.cart_id
-         AND (carts.customer_id = auth.uid() OR public.is_admin(auth.uid()))
+         AND (
+           carts.customer_id = auth.uid()
+           OR public.is_admin_med_or_above(auth.uid())
+           OR (public.is_admin(auth.uid()) AND carts.processed_by = auth.uid())
+         )
     )
   );
 
@@ -703,17 +811,19 @@ CREATE POLICY "sold_products_insert"
 CREATE POLICY "sold_products_update"
   ON public.sold_products FOR UPDATE
   TO authenticated
-  USING  (public.is_admin(auth.uid()))
-  WITH CHECK (public.is_admin(auth.uid()));
+  USING  (public.is_admin_med_or_above(auth.uid()))
+  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
 
 CREATE POLICY "sold_products_delete"
   ON public.sold_products FOR DELETE
   TO authenticated
-  USING (public.is_admin(auth.uid()));
+  USING (public.is_admin_med_or_above(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------
--- Refunds: customers see refunds on their own carts; admins see all
+-- Refunds: low admins have no access at all
+--   SELECT — customers see refunds on own carts; med/high see all
+--   INSERT/DELETE — med/high only
 -- ---------------------------------------------------------------------------
 CREATE POLICY "refunds_select"
   ON public.refunds FOR SELECT
@@ -722,23 +832,25 @@ CREATE POLICY "refunds_select"
     EXISTS (
       SELECT 1 FROM public.carts
        WHERE carts.id = refunds.cart_id
-         AND (carts.customer_id = auth.uid() OR public.is_admin(auth.uid()))
+         AND carts.customer_id = auth.uid()
     )
+    OR public.is_admin_med_or_above(auth.uid())
   );
 
 CREATE POLICY "refunds_insert"
   ON public.refunds FOR INSERT
   TO authenticated
-  WITH CHECK (public.is_admin(auth.uid()));
+  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
 
 CREATE POLICY "refunds_delete"
   ON public.refunds FOR DELETE
   TO authenticated
-  USING (public.is_admin(auth.uid()));
+  USING (public.is_admin_med_or_above(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------
 -- Refund Items: access inherited through refund → cart → customer
+--   low admins have no access
 -- ---------------------------------------------------------------------------
 CREATE POLICY "refund_items_select"
   ON public.refund_items FOR SELECT
@@ -749,16 +861,24 @@ CREATE POLICY "refund_items_select"
         FROM public.refunds r
         JOIN public.carts   c ON c.id = r.cart_id
        WHERE r.id = refund_items.refund_id
-         AND (c.customer_id = auth.uid() OR public.is_admin(auth.uid()))
+         AND (
+           c.customer_id = auth.uid()
+           OR public.is_admin_med_or_above(auth.uid())
+         )
     )
   );
 
 CREATE POLICY "refund_items_insert"
   ON public.refund_items FOR INSERT
   TO authenticated
-  WITH CHECK (public.is_admin(auth.uid()));
+  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
 
 CREATE POLICY "refund_items_delete"
   ON public.refund_items FOR DELETE
   TO authenticated
-  USING (public.is_admin(auth.uid()));
+  USING (public.is_admin_med_or_above(auth.uid()));
+
+
+-- =============================================================================
+-- END OF SCHEMA
+-- =============================================================================

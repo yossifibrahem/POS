@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import type { AdminLevel } from "@/lib/permissions";
 
 interface AuthContextType {
   user: User | null;
   isAdmin: boolean;
+  adminLevel: AdminLevel;
   loading: boolean;
   adminLoading: boolean;
   rememberMe: boolean;
@@ -15,6 +17,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isAdmin: false,
+  adminLevel: null,
   loading: true,
   adminLoading: true,
   rememberMe: true,
@@ -25,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminLevel, setAdminLevel] = useState<AdminLevel>(null);
   const [loading, setLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(true);
   const currentUserId = useRef<string | null>(null);
@@ -39,8 +43,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const checkAdmin = async (userId: string) => {
-    const { data } = await supabase.rpc("is_admin", { _user_id: userId });
-    setIsAdmin(!!data);
+    const { data: isAdminCheck } = await supabase.rpc("is_admin", { _user_id: userId });
+    const isUserAdmin = !!isAdminCheck;
+    setIsAdmin(isUserAdmin);
+    
+    if (isUserAdmin) {
+      const { data: levelData } = await supabase.rpc("get_admin_level", { _user_id: userId });
+      setAdminLevel((levelData as AdminLevel) || null);
+    } else {
+      setAdminLevel(null);
+    }
   };
 
   useEffect(() => {
@@ -59,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             checkAdmin(u.id).finally(() => setAdminLoading(false));
           } else {
             setIsAdmin(false);
+            setAdminLevel(null);
             setAdminLoading(false);
           }
         }
@@ -74,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAdminLoading(true);
         checkAdmin(u.id).finally(() => setAdminLoading(false));
       } else {
+        setAdminLevel(null);
         setAdminLoading(false);
       }
     });
@@ -85,10 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setIsAdmin(false);
+    setAdminLevel(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, adminLoading, rememberMe, setRememberMe, signOut }}>
+    <AuthContext.Provider value={{ user, isAdmin, adminLevel, loading, adminLoading, rememberMe, setRememberMe, signOut }}>
       {children}
     </AuthContext.Provider>
   );

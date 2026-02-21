@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { canSeeCostAndProfit } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -28,6 +30,7 @@ interface Product {
 
 export default function Overview() {
   const navigate = useNavigate();
+  const { adminLevel } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ products: 0, categories: 0, customers: 0, salesToday: 0, revenueToday: 0, profitToday: 0 });
   const [recentCarts, setRecentCarts] = useState<Cart[]>([]);
@@ -106,7 +109,7 @@ export default function Overview() {
   }, []);
 
 
-  const statCards = [
+  const allStatCards = [
     { label: "Total Products", value: stats.products, icon: Package, description: "In inventory", to: "/dashboard/products" },
     { label: "Total Categories", value: stats.categories, icon: Tags, description: "Product groups", to: "/dashboard/categories" },
     { label: "Total Customers", value: stats.customers, icon: Users, description: "Registered", to: "/dashboard/customers" },
@@ -114,6 +117,11 @@ export default function Overview() {
     { label: "Revenue Today", value: formatCurrency(stats.revenueToday), icon: DollarSign, description: "Total sales", to: "/dashboard/sales/history" },
     { label: "Profit Today", value: formatCurrency(stats.profitToday), icon: TrendingUp, description: "Net earnings", to: "/dashboard/sales/history" },
   ];
+
+  // Filter out profit card for med and low admins
+  const statCards = canSeeCostAndProfit(adminLevel) 
+    ? allStatCards 
+    : allStatCards.filter(card => card.label !== "Profit Today");
 
   return (
     <div className="p-4 md:p-6 space-y-6">

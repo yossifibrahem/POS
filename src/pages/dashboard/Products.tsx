@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { canSeeCostAndProfit } from "@/lib/permissions";
 import { parseSortFromURL } from "@/lib/urlSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +42,7 @@ interface Category {
 }
 
 export default function Products() {
+  const { adminLevel } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
@@ -210,7 +213,7 @@ export default function Products() {
     const payload = {
       name: form.name.trim(),
       price: Number(form.price) || 0,
-      cost: Number(form.cost) || 0,
+      cost: canSeeCostAndProfit(adminLevel) ? Number(form.cost) || 0 : 0,
       stock: parseInt(form.stock) || 0,
       category_id: form.category_id || null,
       attributes: productAttributes,
@@ -306,7 +309,9 @@ export default function Products() {
                 <div className="text-sm text-muted-foreground">{p.categories?.name || "—"}</div>
                 <div className="flex items-center justify-between text-sm">
                   <div>{formatCurrency(p.price)}</div>
-                  <div className="text-muted-foreground">Cost: {formatCurrency(p.cost)}</div>
+                  {canSeeCostAndProfit(adminLevel) && (
+                    <div className="text-muted-foreground">Cost: {formatCurrency(p.cost)}</div>
+                  )}
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-sm">Stock: {p.stock}</div>
@@ -334,7 +339,9 @@ export default function Products() {
               <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Price</Label><Input type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
-                <div className="space-y-2"><Label>Cost</Label><Input type="number" min="0" step="0.01" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></div>
+                {canSeeCostAndProfit(adminLevel) && (
+                  <div className="space-y-2"><Label>Cost</Label><Input type="number" min="0" step="0.01" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Stock</Label><Input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} /></div>
@@ -397,6 +404,7 @@ export default function Products() {
         onOpenChange={setDetailModalOpen}
         context="products"
         onEdit={openEdit}
+        showCost={canSeeCostAndProfit(adminLevel)}
       />
     </div>
   );
