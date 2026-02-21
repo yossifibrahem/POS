@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Json } from "@/integrations/supabase/types";
+import { useAuth } from "@/hooks/useAuth";
 
 type CartRow = { 
   id: string; 
@@ -45,6 +46,7 @@ interface CartDetailModalProps {
 }
 
 export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDetailModalProps) {
+  const { user } = useAuth();
   const [cart, setCart] = useState<CartRow | null>(null);
   const [items, setItems] = useState<SoldItemRow[]>([]);
   const [returningId, setReturningId] = useState<string | null>(null);
@@ -88,7 +90,8 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
         .from("refunds")
         .insert({
           cart_id: cartId,
-          refund_amount: refundAmount
+          refund_amount: refundAmount,
+          processed_by: user?.id
         })
         .select()
         .single();

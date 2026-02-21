@@ -19,6 +19,7 @@ import { withLoading, handleError, handleSuccess } from "@/lib/api";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { filterCartsByProduct } from "@/lib/filters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Cart {
   id: string;
@@ -38,6 +39,7 @@ interface Cart {
 
 
 export default function SalesHistory() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [carts, setCarts] = useState<Cart[]>([]);
   const [dateFrom, setDateFrom] = useState("");
@@ -140,7 +142,8 @@ export default function SalesHistory() {
         .from("refunds")
         .insert({
           cart_id: deleteCartId,
-          refund_amount: refundAmount
+          refund_amount: refundAmount,
+          processed_by: user?.id
         })
         .select()
         .single();
