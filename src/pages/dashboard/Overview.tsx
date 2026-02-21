@@ -69,7 +69,7 @@ export default function Overview() {
           .in("cart_id", cartIds);
         
         // Group line items by cart_id
-        const lineItemsByCart: Record<string, { product_name: string | null; sold_quantity: number; refunded_quantity: number }[]> = {};
+        const lineItemsByCart: Record<string, { product_name: string | null; sold_quantity: number | null; refunded_quantity: number | null }[]> = {};
         lineItemsData?.forEach(item => {
           if (!lineItemsByCart[item.cart_id]) {
             lineItemsByCart[item.cart_id] = [];
@@ -104,6 +104,7 @@ export default function Overview() {
       setLoading(false);
     });
   }, []);
+
 
   const statCards = [
     { label: "Total Products", value: stats.products, icon: Package, description: "In inventory", to: "/dashboard/products" },

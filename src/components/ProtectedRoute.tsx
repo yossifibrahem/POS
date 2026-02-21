@@ -4,16 +4,17 @@ import { useAuth } from "@/hooks/useAuth";
 export function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
   const { user, isAdmin, loading, adminLoading } = useAuth();
 
-  if (loading || (adminOnly && adminLoading)) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+  if (loading || adminLoading) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div>;
   }
 
-  if (!user) return <Navigate to="/login" replace />;
-  if (adminOnly && !isAdmin) return <Navigate to="/account" replace />;
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (adminOnly && !isAdmin) {
+    return <Navigate to="/account" replace />;
+  }
 
   return <>{children}</>;
 }

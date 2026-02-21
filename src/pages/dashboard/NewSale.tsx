@@ -70,15 +70,16 @@ export default function NewSale() {
   useEffect(() => {
     Promise.all([
       supabase.from("products").select("*, categories(name)").order("name"),
-      supabase.from("categories").select("*").order("name"),
-      supabase.from("customers").select("id, full_name, email").order("full_name"),
-    ]).then(([productsRes, categoriesRes, customersRes]) => {
+      supabase.from("customers").select("*").order("full_name"),
+      supabase.from("categories").select("*"),
+    ]).then(([productsRes, customersRes, categoriesRes]) => {
       setProducts((productsRes.data || []) as Product[]);
-      setCategories(categoriesRes.data || []);
       setCustomers(customersRes.data || []);
+      setCategories(categoriesRes.data || []);
       setLoading(false);
     });
   }, [user]);
+
 
   const addToCart = (product: Product) => {
     setCart((prev) => {

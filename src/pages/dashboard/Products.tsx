@@ -67,6 +67,7 @@ export default function Products() {
 
   useEffect(() => { load(); }, []);
 
+
   const openCreate = () => {
     setEditing(null);
     setForm({ name: "", price: "", cost: "", stock: "", category_id: "" });

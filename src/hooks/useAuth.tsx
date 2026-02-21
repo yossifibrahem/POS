@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
@@ -27,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(true);
+  const currentUserId = useRef<string | null>(null);
   const [rememberMe, setRememberMeState] = useState(() => {
     const saved = localStorage.getItem("rememberMe");
     return saved !== null ? JSON.parse(saved) : true;
@@ -46,20 +47,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         const u = session?.user ?? null;
-        setUser(u);
-        setLoading(false);
-        if (u) {
-          setAdminLoading(true);
-          checkAdmin(u.id).finally(() => setAdminLoading(false));
-        } else {
-          setIsAdmin(false);
-          setAdminLoading(false);
+        const newUserId = u?.id ?? null;
+        
+        // Only update state if user actually changed (prevents remount on tab focus)
+        if (newUserId !== currentUserId.current) {
+          currentUserId.current = newUserId;
+          setUser(u);
+          setLoading(false);
+          if (u) {
+            setAdminLoading(true);
+            checkAdmin(u.id).finally(() => setAdminLoading(false));
+          } else {
+            setIsAdmin(false);
+            setAdminLoading(false);
+          }
         }
       }
     );
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null;
+      currentUserId.current = u?.id ?? null;
       setUser(u);
       setLoading(false);
       if (u) {
