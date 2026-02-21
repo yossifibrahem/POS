@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { canSeeCostAndProfit } from "@/lib/permissions";
 import type { Json } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +57,7 @@ interface Customer {
 }
 
 export default function NewSale() {
-  const { user } = useAuth();
+  const { user, adminLevel } = useAuth();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
@@ -410,6 +411,7 @@ export default function NewSale() {
         onOpenChange={setDetailModalOpen}
         context="newsale"
         onAddToCart={addToCart}
+        showCost={canSeeCostAndProfit(adminLevel)}
       />
     </div>
   );
