@@ -43,7 +43,7 @@ export default function Overview() {
       supabase.from("categories").select("id", { count: "exact", head: true }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
       supabase.from("carts").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed"),
-      supabase.from("cart_summary").select("*").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
+      supabase.from("cart_summary").select("*").eq("status", "completed").gte("created_at", start).lte("created_at", end).neq("refund_status", "fully_refunded").order("created_at", { ascending: false }).limit(10),
       supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
       supabase.from("sold_products").select("quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
     ]).then(async ([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
@@ -158,8 +158,8 @@ export default function Overview() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base font-semibold">Recent Sales</CardTitle>
-                <CardDescription>Latest completed transactions</CardDescription>
+                <CardTitle className="text-base font-semibold">Sales Today</CardTitle>
+                <CardDescription>Today's completed transactions</CardDescription>
               </div>
               <div className="p-2 bg-muted rounded-md">
                 <Clock className="h-4 w-4 text-muted-foreground" />
@@ -284,7 +284,7 @@ export default function Overview() {
               </div>
             ) : (
               <div className="space-y-2">
-                {lowStock.map((p) => (
+                {lowStock.slice(0, 5).map((p) => (
                   <div 
                     key={p.id} 
                     className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
@@ -301,6 +301,14 @@ export default function Overview() {
                     </Badge>
                   </div>
                 ))}
+                {lowStock.length > 5 && (
+                  <div 
+                    className="flex items-center justify-center p-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                    onClick={() => navigate('/dashboard/products?sort=stock-asc')}
+                  >
+                    View all {lowStock.length} low stock products →
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -319,7 +327,7 @@ export default function Overview() {
             supabase.from("categories").select("id", { count: "exact", head: true }),
             supabase.from("customers").select("id", { count: "exact", head: true }),
             supabase.from("carts").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed"),
-            supabase.from("cart_summary").select("*").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
+            supabase.from("cart_summary").select("*").eq("status", "completed").gte("created_at", start).lte("created_at", end).neq("refund_status", "fully_refunded").order("created_at", { ascending: false }).limit(10),
             supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
             supabase.from("sold_products").select("quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
           ]).then(async ([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
