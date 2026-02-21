@@ -24,6 +24,7 @@ interface Cart {
   total: number;
   created_at: string;
   status: string;
+  refund_status?: string | null;
   sold_products?: { quantity: number; products?: { name?: string } }[];
   customers?: { full_name?: string };
 }
@@ -80,7 +81,7 @@ export function CustomerDetailModal({ customer, open, onOpenChange }: CustomerDe
   const [loading, setLoading] = useState(false);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const [cartModalOpen, setCartModalOpen] = useState(false);
-  const [showOnlyCompleted, setShowOnlyCompleted] = useState(true);
+  const [hideRefunded, setHideRefunded] = useState(true);
   const [processedCarts, setProcessedCarts] = useState<Cart[]>([]);
   const [loadingProcessed, setLoadingProcessed] = useState(false);
   const [activeTab, setActiveTab] = useState<"purchases" | "processed">("purchases");
@@ -88,37 +89,47 @@ export function CustomerDetailModal({ customer, open, onOpenChange }: CustomerDe
   const loadCarts = useCallback(async () => {
     if (!customer) return;
     setLoading(true);
-    let query = supabase
+    const { data } = await supabase
       .from("carts")
       .select("*, sold_products(quantity, products(name))")
       .eq("customer_id", customer.id)
       .order("created_at", { ascending: false });
-    if (showOnlyCompleted) query = query.eq("status", "completed");
-    const { data } = await query;
-    setCarts(data || []);
+    
+    // Filter client-side for refund status (to avoid type issues with computed columns)
+    const cartsWithRefundStatus = data as Array<{ refund_status?: string | null }>;
+    const filteredData = hideRefunded 
+      ? (cartsWithRefundStatus || []).filter(cart => cart.refund_status !== "fully_refunded")
+      : (cartsWithRefundStatus || []);
+    
+    setCarts(filteredData as typeof carts);
     setLoading(false);
-  }, [customer, showOnlyCompleted]);
+  }, [customer, hideRefunded]);
 
   const loadProcessedCarts = useCallback(async () => {
     if (!customer) return;
     setLoadingProcessed(true);
-    let query = supabase
+    const { data } = await supabase
       .from("carts")
       .select("*, customers(full_name), sold_products(quantity, products(name))")
       .eq("processed_by", customer.id)
       .order("created_at", { ascending: false });
-    if (showOnlyCompleted) query = query.eq("status", "completed");
-    const { data } = await query;
-    setProcessedCarts(data || []);
+    
+    // Filter client-side for refund status (to avoid type issues with computed columns)
+    const cartsWithRefundStatus = data as Array<{ refund_status?: string | null }>;
+    const filteredData = hideRefunded 
+      ? (cartsWithRefundStatus || []).filter(cart => cart.refund_status !== "fully_refunded")
+      : (cartsWithRefundStatus || []);
+    
+    setProcessedCarts(filteredData as typeof processedCarts);
     setLoadingProcessed(false);
-  }, [customer, showOnlyCompleted]);
+  }, [customer, hideRefunded]);
 
   useEffect(() => {
     if (open && customer) {
       loadCarts();
       loadProcessedCarts();
     }
-  }, [open, customer, loadCarts, loadProcessedCarts, showOnlyCompleted]);
+  }, [open, customer, loadCarts, loadProcessedCarts, hideRefunded]);
 
   const handleCartClick = (cartId: string) => {
     setSelectedCartId(cartId);
@@ -198,8 +209,8 @@ export function CustomerDetailModal({ customer, open, onOpenChange }: CustomerDe
               {/* Toggle and Content */}
               <div className="space-y-3">
                 <div className="flex items-center justify-end gap-2">
-                  <span className="text-sm text-muted-foreground">Show only completed</span>
-                  <Switch checked={showOnlyCompleted} onCheckedChange={setShowOnlyCompleted} />
+                  <span className="text-sm text-muted-foreground">Hide refunded</span>
+                  <Switch checked={hideRefunded} onCheckedChange={setHideRefunded} />
                 </div>
 
                 {currentLoading ? (
@@ -217,7 +228,7 @@ export function CustomerDetailModal({ customer, open, onOpenChange }: CustomerDe
                   </div>
                 ) : (
                   <div className="rounded-md border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
-                    No {activeTab === "purchases" ? "purchase history" : "processed sales"} found.
+                    No {activeTab === "purchases" ? "purchases" : "processed sales"} found.
                   </div>
                 )}
               </div>
