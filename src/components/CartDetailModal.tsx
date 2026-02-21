@@ -11,12 +11,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/formatters";
-import { canSeeCostAndProfit, canManageRefunds } from "@/lib/permissions";
+import { canSeeCostAndProfit } from "@/lib/permissions";
 
 type CartRow = { 
   id: string; total: number; created_at: string; notes?: string | null; 
   customers?: { profiles?: { full_name?: string; email?: string } | null }; 
-  admins?: { id?: string; profiles?: { full_name?: string } | null } 
+  admins?: { profiles?: { full_name?: string } | null } 
 };
 
 type SoldItemRow = { 
@@ -47,7 +47,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
   const loadData = useCallback(async () => {
     if (!cartId) return;
     const [cartRes, itemsRes] = await Promise.all([
-      supabase.from("carts").select("*, customers(profiles(full_name, email)), admins(id, profiles(full_name))").eq("id", cartId).single(),
+      supabase.from("carts").select("*, customers(profiles(full_name, email)), admins(profiles(full_name))").eq("id", cartId).single(),
       supabase.from("cart_line_items").select("*").eq("cart_id", cartId),
     ]);
     if (cartRes.data) setCart(cartRes.data);
@@ -223,7 +223,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                           </>
                         )}
 
-                        {!isFullyRefunded && m.activeQty > 0 && (canManageRefunds(adminLevel) || user?.id === cart.admins?.id) && (
+                        {!isFullyRefunded && m.activeQty > 0 && (
                           <div className="flex items-center justify-between gap-2 pt-2 border-t">
                             <Select value={String(returnQty[item.sold_product_id] ?? 1)} onValueChange={v => setReturnQty(p => ({ ...p, [item.sold_product_id]: parseInt(v, 10) }))}>
                               <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
