@@ -29,6 +29,13 @@ interface CartDetailModalProps {
   cartId: string | null; open: boolean; onOpenChange: (open: boolean) => void; onRefund?: () => void;
 }
 
+const Row = ({ label, value, className = "", icon: Icon }: { label: string; value: string | number; className?: string; icon?: React.ComponentType<{ className?: string }> }) => (
+  <div className={`flex justify-between text-sm ${className}`}>
+    <span className="flex items-center gap-1">{Icon && <Icon className="h-3 w-3" />}{label}</span>
+    <span className="font-medium">{value}</span>
+  </div>
+);
+
 export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDetailModalProps) {
   const { user } = useAuth();
   const [cart, setCart] = useState<CartRow | null>(null);
@@ -104,30 +111,33 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
     return attrs as Record<string, string | number | boolean>;
   };
 
-  const calcItemMetrics = (item: SoldItemRow) => {
+  const calcMetrics = (item: SoldItemRow) => {
     const activeQty = item.sold_quantity - (item.refunded_quantity || 0);
     const unitPrice = Number(item.unit_price);
-    const discount = item.original_price && item.original_price > unitPrice ? (item.original_price - unitPrice) * activeQty : 0;
-    const profit = item.product_cost !== null ? (unitPrice - item.product_cost) * activeQty : null;
-    return { activeQty, discount, profit, subtotal: activeQty * unitPrice };
+    const originalPrice = item.original_price || unitPrice;
+    const unitDiscount = Math.max(0, originalPrice - unitPrice);
+    const unitProfit = item.product_cost !== null ? unitPrice - item.product_cost : null;
+    
+    return {
+      activeQty,
+      unitDiscount,
+      totalDiscount: unitDiscount * activeQty,
+      totalOriginalPrice: originalPrice * activeQty,
+      subtotal: activeQty * unitPrice,
+      unitProfit,
+      lineProfit: unitProfit !== null ? unitProfit * activeQty : null,
+      hasDiscount: unitDiscount > 0
+    };
   };
 
-  const calcCartTotals = () => ({
-    discount: items.reduce((sum, item) => {
-      const activeQty = item.sold_quantity - (item.refunded_quantity || 0);
-      const discountPerUnit = item.original_price && item.original_price > Number(item.unit_price) 
-        ? item.original_price - Number(item.unit_price) : 0;
-      return sum + discountPerUnit * activeQty;
-    }, 0),
-    profit: items.reduce((sum, item) => {
-      const activeQty = item.sold_quantity - (item.refunded_quantity || 0);
-      return sum + (item.product_cost !== null ? (Number(item.unit_price) - item.product_cost) * activeQty : 0);
-    }, 0),
-    netTotal: items.reduce((sum, item) => {
-      const activeQty = item.sold_quantity - (item.refunded_quantity || 0);
-      return sum + Number(item.unit_price) * activeQty;
-    }, 0)
-  });
+  const calcCartTotals = () => items.reduce((acc, item) => {
+    const m = calcMetrics(item);
+    return {
+      discount: acc.discount + m.totalDiscount,
+      profit: acc.profit + (m.lineProfit || 0),
+      netTotal: acc.netTotal + m.subtotal
+    };
+  }, { discount: 0, profit: 0, netTotal: 0 });
 
   if (!cart) return null;
 
@@ -160,7 +170,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                   const refundedQty = item.refunded_quantity || 0;
                   const isFullyRefunded = refundedQty >= item.sold_quantity;
                   const isPartiallyRefunded = refundedQty > 0 && !isFullyRefunded;
-                  const { activeQty, discount, profit, subtotal } = calcItemMetrics(item);
+                  const m = calcMetrics(item);
 
                   return (
                     <div key={item.sold_product_id} className={`rounded-lg border bg-card p-4 ${isFullyRefunded ? 'opacity-60 bg-red-50' : ''}`}>
@@ -176,30 +186,24 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                       </div>
                       
                       <div className="space-y-2">
-                        <div className="flex justify-between text-sm"><span>Sold Qty</span><span className="font-medium">{item.sold_quantity}</span></div>
-                        {isPartiallyRefunded && <div className="flex justify-between text-sm text-muted-foreground"><span>Refunded</span><span className="line-through">-{refundedQty}</span></div>}
-                        {isPartiallyRefunded && <div className="flex justify-between text-sm"><span>Active Qty</span><span className="font-medium">{activeQty}</span></div>}
-                        <div className="flex justify-between text-sm"><span>Unit Price</span><span className="font-medium">{formatCurrency(Number(item.unit_price))}</span></div>
-                        
-                        {discount > 0 && (
-                          <div className="flex justify-between text-sm text-green-600">
-                            <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> Discount</span>
-                            <span className="font-medium">-{formatCurrency(discount)}</span>
-                          </div>
-                        )}
-                        
-                        {profit !== null && (
-                          <div className="flex justify-between text-sm">
-                            <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Profit</span>
-                            <span className={`font-medium ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(profit)}</span>
-                          </div>
-                        )}
-                        
+                        <Row label="Sold Qty" value={item.sold_quantity} />
+                        {isPartiallyRefunded && <Row label="Refunded" value={`-${refundedQty}`} className="text-muted-foreground" />}
+                        {isPartiallyRefunded && <Row label="Active Qty" value={m.activeQty} />}
+
+                        {m.hasDiscount && <Row label="Original Unit Price" value={formatCurrency(item.original_price!)} className="text-muted-foreground" />}
+                        {m.hasDiscount && <Row label="Unit Discount" value={`-${formatCurrency(m.unitDiscount)}`} className="text-green-600" icon={Tag} />}
+                        <Row label="Unit Price" value={formatCurrency(Number(item.unit_price))} />
+
                         <Separator className="my-2" />
-                        <div className="flex justify-between text-sm">
-                          <span>Line Total</span>
-                          <span className={`font-semibold ${isFullyRefunded ? 'line-through' : ''}`}>{formatCurrency(subtotal)}</span>
-                        </div>
+
+                        {m.hasDiscount && <Row label="Total Original Price" value={formatCurrency(m.totalOriginalPrice)} className="text-muted-foreground" />}
+                        {m.hasDiscount && <Row label="Total Discount" value={`-${formatCurrency(m.totalDiscount)}`} className="text-green-600" icon={Tag} />}
+                        <Row label="Line Total" value={formatCurrency(m.subtotal)} className={isFullyRefunded ? 'line-through' : ''} />
+
+                        <Separator className="my-2" />
+
+                        {m.unitProfit !== null && <Row label="Unit Profit" value={formatCurrency(m.unitProfit)} className={m.unitProfit >= 0 ? 'text-green-600' : 'text-red-600'} icon={TrendingUp} />}
+                        {m.lineProfit !== null && <Row label="Line Profit" value={formatCurrency(m.lineProfit)} className={m.lineProfit >= 0 ? 'text-green-600' : 'text-red-600'} icon={TrendingUp} />}
                         
                         {hasAttrs && (
                           <>
@@ -218,12 +222,12 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                           </>
                         )}
 
-                        {!isFullyRefunded && activeQty > 0 && (
+                        {!isFullyRefunded && m.activeQty > 0 && (
                           <div className="flex items-center justify-between gap-2 pt-2 border-t">
                             <Select value={String(returnQty[item.sold_product_id] ?? 1)} onValueChange={v => setReturnQty(p => ({ ...p, [item.sold_product_id]: parseInt(v, 10) }))}>
                               <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {Array.from({ length: activeQty }, (_, i) => i + 1).map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                                {Array.from({ length: m.activeQty }, (_, i) => i + 1).map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
                               </SelectContent>
                             </Select>
                             <Button variant="ghost" size="sm" className="gap-1 h-8 text-red-500 hover:text-red-600" onClick={() => handlePartialReturn(item)} disabled={returningId === item.sold_product_id}>
@@ -241,18 +245,10 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
             {items.length > 0 && (
               <div className="rounded-lg border bg-card p-4 space-y-2 mt-4">
                 <div className="text-sm font-semibold mb-3">Cart Summary</div>
-                {totalDiscount > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
-                    <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> Total Discount</span>
-                    <span className="font-semibold">-{formatCurrency(totalDiscount)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Total Profit</span>
-                  <span className={`font-semibold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(totalProfit)}</span>
-                </div>
+                {totalDiscount > 0 && <Row label="Total Discount" value={`-${formatCurrency(totalDiscount)}`} className="text-green-600" icon={Tag} />}
+                <Row label="Total Profit" value={formatCurrency(totalProfit)} className={totalProfit >= 0 ? 'text-green-600' : 'text-red-600'} icon={TrendingUp} />
                 <Separator className="my-2" />
-                <div className="flex justify-between text-sm"><span>Total</span><span className="font-semibold">{formatCurrency(netTotal)}</span></div>
+                <Row label="Total" value={formatCurrency(netTotal)} className="font-semibold" />
               </div>
             )}
 
