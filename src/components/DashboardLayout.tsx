@@ -15,7 +15,7 @@ import {
   SidebarInset,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Package, Tags, ShoppingCart, History, LogOut } from "lucide-react";
+import { LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut } from "lucide-react";
 
 const navItems = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
@@ -23,6 +23,7 @@ const navItems = [
   { title: "Categories", url: "/dashboard/categories", icon: Tags },
   { title: "New Sale", url: "/dashboard/sales", icon: ShoppingCart },
   { title: "Sales History", url: "/dashboard/sales/history", icon: History },
+  { title: "Profiles", url: "/dashboard/profiles", icon: Users },
 ];
 
 export default function DashboardLayout() {

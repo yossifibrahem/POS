@@ -13,6 +13,7 @@ import Products from "./pages/dashboard/Products";
 import Categories from "./pages/dashboard/Categories";
 import NewSale from "./pages/dashboard/NewSale";
 import SalesHistory from "./pages/dashboard/SalesHistory";
+import Profiles from "./pages/dashboard/Profiles";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
               <Route path="categories" element={<Categories />} />
               <Route path="sales" element={<NewSale />} />
               <Route path="sales/history" element={<SalesHistory />} />
+              <Route path="profiles" element={<Profiles />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
