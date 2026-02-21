@@ -100,10 +100,13 @@ export function sortProducts<T extends {
 }
 
 /**
- * Filter carts by product name in sold_products
+ * Filter carts by customer name
+ * Note: With the new schema using cart_summary view, we filter by customer_name
+ * instead of product names. To filter by product, use the cart_line_items view
+ * and join with carts.
  */
 export function filterCartsByProduct<T extends { 
-  sold_products?: { products?: { name?: string } }[] 
+  customer_name?: string | null 
 }>(
   carts: T[],
   search: string
@@ -113,11 +116,7 @@ export function filterCartsByProduct<T extends {
   const term = search.toLowerCase();
   
   return carts.filter((cart) => {
-    if (!cart.sold_products || cart.sold_products.length === 0) return false;
-    
-    return cart.sold_products.some((sp) => {
-      const productName = sp.products?.name || "";
-      return productName.toLowerCase().includes(term);
-    });
+    const customerName = cart.customer_name || "";
+    return customerName.toLowerCase().includes(term);
   });
 }

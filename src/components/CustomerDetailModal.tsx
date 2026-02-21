@@ -41,7 +41,7 @@ function CartCard({ cart, showCustomer, onClick }: { cart: Cart; showCustomer?: 
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium">{formatDateTime(cart.created_at)}</CardTitle>
           <Badge 
-            variant={cart.status === 'completed' ? 'default' : cart.status === 'refunded' ? 'destructive' : 'secondary'}
+            variant={cart.status === 'completed' ? 'default' : 'secondary'}
             className="text-xs"
           >
             {cart.status}

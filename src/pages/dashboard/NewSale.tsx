@@ -129,13 +129,12 @@ export default function NewSale() {
 
       if (cartError) throw cartError;
 
-      // Insert sold products with explicit status: 'active'
+      // Insert sold products (immutable record - no status needed)
       const soldItems = cart.map((i) => ({
         cart_id: cartData.id,
         product_id: i.product.id,
         quantity: i.quantity,
         unit_price: i.unit_price,
-        status: "active",
       }));
 
       const { error: soldError } = await supabase.from("sold_products").insert(soldItems);
