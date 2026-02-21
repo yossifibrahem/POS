@@ -13,7 +13,7 @@ export const canSeeCostAndProfit = (level: AdminLevel): boolean => level === 'hi
 
 export const canManageInventory = (level: AdminLevel): boolean => level === 'high' || level === 'med';
 
-export const canManageRefunds = (level: AdminLevel): boolean => isAdmin(level);
+export const canManageRefunds = (level: AdminLevel): boolean => level === 'high' || level === 'med';
 
 export const canManageUsers = (level: AdminLevel): boolean => level === 'high' || level === 'med';
 

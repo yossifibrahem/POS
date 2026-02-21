@@ -223,7 +223,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                           </>
                         )}
 
-                        {!isFullyRefunded && m.activeQty > 0 && (canManageRefunds(adminLevel) || user?.id === cart.admins?.id) && (
+                        {!isFullyRefunded && m.activeQty > 0 && (adminLevel !== 'low' || user?.id === cart.admins?.id) && (
                           <div className="flex items-center justify-between gap-2 pt-2 border-t">
                             <Select value={String(returnQty[item.sold_product_id] ?? 1)} onValueChange={v => setReturnQty(p => ({ ...p, [item.sold_product_id]: parseInt(v, 10) }))}>
                               <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
