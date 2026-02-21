@@ -16,7 +16,7 @@ import {
   SidebarInset,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut, User } from "lucide-react";
 import { canAccessDashboard } from "@/lib/permissions";
 
 const allNavItems = [
@@ -29,7 +29,7 @@ const allNavItems = [
 ];
 
 export default function DashboardLayout() {
-  const { adminLevel } = useAuth();
+  const { adminLevel, adminProfile } = useAuth();
   const handleSignOut = useSignOut();
 
   // Filter nav items based on admin level
@@ -44,6 +44,13 @@ export default function DashboardLayout() {
         <Sidebar>
           <SidebarHeader className="border-b px-4 py-2">
             <h2 className="text-lg font-bold tracking-tight">MHG Store</h2>
+            {adminProfile && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                <User className="h-4 w-4" />
+                <span className="font-medium text-foreground">{adminProfile.full_name}</span>
+                <span className="text-xs">({adminLevel})</span>
+              </div>
+            )}
           </SidebarHeader>
           <SidebarContent>
             <SidebarGroup>
