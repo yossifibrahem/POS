@@ -1,6 +1,5 @@
 -- =============================================================================
 -- COMPLETE DATABASE SCHEMA
--- Refund model: immutable refund ledger (refunds + refund_items)
 -- =============================================================================
 
 
@@ -36,7 +35,7 @@ CREATE TABLE public.category_attributes (
   name           TEXT                     NOT NULL,   -- JSON key,   e.g. "ram", "screen_size"
   label          TEXT                     NOT NULL,   -- UI display, e.g. "RAM", "Screen Size"
   attribute_type TEXT                     NOT NULL
-                                           CHECK (attribute_type IN ('text', 'number', 'boolean', 'enum')),
+                                            CHECK (attribute_type IN ('text', 'number', 'boolean', 'enum')),
   unit           TEXT,                                -- e.g. "GB", "inch" (display only)
   options        JSONB,                               -- enum only, e.g. ["4","8","12","16"]
   is_required    BOOLEAN                  NOT NULL DEFAULT false,
@@ -87,16 +86,15 @@ CREATE TABLE public.admins (
 
 -- ---------------------------------------------------------------------------
 -- Carts
--- customer_id is nullable to support walk-in (in-person) sales.
--- 'refunded' is no longer a status — query the refunds table instead.
--- carts.total stores the original sale total (immutable once completed).
+-- customer_id is nullable to support walk-in (in-person) sales where the
+-- customer is not registered in the system.
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.carts (
   id           UUID                     NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   customer_id  UUID                     REFERENCES public.customers(id) ON DELETE CASCADE,
   processed_by UUID                     REFERENCES public.admins(id) ON DELETE SET NULL,
   status       TEXT                     NOT NULL DEFAULT 'pending'
-                                          CHECK (status IN ('pending', 'completed', 'cancelled')),
+                                          CHECK (status IN ('pending', 'completed', 'refunded', 'cancelled')),
   total        NUMERIC                  NOT NULL DEFAULT 0 CHECK (total >= 0),
   notes        TEXT,
   created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -105,44 +103,21 @@ CREATE TABLE public.carts (
 
 -- ---------------------------------------------------------------------------
 -- Sold Products (line items)
--- Immutable once the cart is completed — never mutated after the sale.
--- Refunds are recorded in the refunds / refund_items tables.
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.sold_products (
-  id          UUID                     NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  cart_id     UUID                     NOT NULL REFERENCES public.carts(id) ON DELETE CASCADE,
-  product_id  UUID                     REFERENCES public.products(id) ON DELETE SET NULL,
-  quantity    INTEGER                  NOT NULL DEFAULT 1 CHECK (quantity > 0),
-  unit_price  NUMERIC                  NOT NULL CHECK (unit_price >= 0),
-  created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-);
+  id                UUID                     NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  cart_id           UUID                     NOT NULL REFERENCES public.carts(id) ON DELETE CASCADE,
+  product_id        UUID                     REFERENCES public.products(id) ON DELETE SET NULL,
+  quantity          INTEGER                  NOT NULL DEFAULT 1 CHECK (quantity > 0),
+  refunded_quantity INTEGER                  NOT NULL DEFAULT 0 CHECK (refunded_quantity >= 0),
+  unit_price        NUMERIC                  NOT NULL CHECK (unit_price >= 0),
+  status            TEXT                     NOT NULL DEFAULT 'active'
+                                               CHECK (status IN ('active', 'refunded')),
+  created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
 
--- ---------------------------------------------------------------------------
--- Refunds
--- One record per refund event (a cart can have multiple over its lifetime).
--- refund_amount is the monetary total for this event, stored for fast lookup
--- and as a guard against item-level rounding drift.
--- ---------------------------------------------------------------------------
-CREATE TABLE public.refunds (
-  id            UUID                     NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  cart_id       UUID                     NOT NULL REFERENCES public.carts(id),
-  processed_by  UUID                     REFERENCES public.admins(id) ON DELETE SET NULL,
-  refund_amount NUMERIC                  NOT NULL CHECK (refund_amount > 0),
-  created_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-);
-
--- ---------------------------------------------------------------------------
--- Refund Items
--- Line-level breakdown of what was returned in each refund event.
--- The trigger on INSERT handles restocking.
--- ---------------------------------------------------------------------------
-CREATE TABLE public.refund_items (
-  id              UUID    NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  refund_id       UUID    NOT NULL REFERENCES public.refunds(id) ON DELETE CASCADE,
-  sold_product_id UUID    NOT NULL REFERENCES public.sold_products(id),
-  quantity        INTEGER NOT NULL CHECK (quantity > 0),
-  unit_price      NUMERIC NOT NULL CHECK (unit_price >= 0)
+  CONSTRAINT chk_refunded_quantity_lte_quantity
+    CHECK (refunded_quantity <= quantity)
 );
 
 
@@ -162,11 +137,7 @@ CREATE INDEX idx_carts_status                     ON public.carts(status);
 
 CREATE INDEX idx_sold_products_cart_id            ON public.sold_products(cart_id);
 CREATE INDEX idx_sold_products_product_id         ON public.sold_products(product_id);
-
-CREATE INDEX idx_refunds_cart_id                  ON public.refunds(cart_id);
-CREATE INDEX idx_refunds_processed_by             ON public.refunds(processed_by);
-CREATE INDEX idx_refund_items_refund_id           ON public.refund_items(refund_id);
-CREATE INDEX idx_refund_items_sold_product_id     ON public.refund_items(sold_product_id);
+CREATE INDEX idx_sold_products_status             ON public.sold_products(status);
 
 
 -- =============================================================================
@@ -232,9 +203,11 @@ CREATE TRIGGER trg_sold_products_updated_at
 -- =============================================================================
 -- TRIGGER FUNCTION: stock management (driven by cart status transitions)
 --
---   pending   → completed : DEDUCT stock for all sold_products line items
+--   pending   → completed : DEDUCT stock for all active sold_products
 --   pending   → cancelled : DELETE sold_products (stock was never deducted)
---   completed → cancelled : BLOCKED — insert a refund record instead
+--   completed → cancelled : BLOCKED — use 'refunded' instead
+--   completed → refunded  : status change only; restocking is handled per-item
+--                           by the sold_products status trigger below
 --
 --   Stock is intentionally NOT touched on sold_products INSERT/DELETE so that
 --   building / editing a pending cart never affects inventory.
@@ -247,27 +220,35 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  -- Only act when status actually changes
   IF OLD.status = NEW.status THEN
     RETURN NEW;
   END IF;
 
-  -- Block completed → cancelled (insert a refund record instead)
+  -- Block completed → cancelled (use 'refunded' for completed carts)
   IF OLD.status = 'completed' AND NEW.status = 'cancelled' THEN
     RAISE EXCEPTION
-      'Cannot cancel a completed cart. Insert a refund record instead.';
+      'Cannot cancel a completed cart. Use status ''refunded'' instead.';
   END IF;
 
-  -- pending → completed : deduct stock for all line items
+  -- pending → completed : deduct stock
   IF OLD.status = 'pending' AND NEW.status = 'completed' THEN
     UPDATE public.products p
        SET stock = stock - sp.quantity
       FROM public.sold_products sp
      WHERE sp.cart_id    = NEW.id
-       AND sp.product_id = p.id;
+       AND sp.product_id = p.id
+       AND sp.status     = 'active';
 
   -- pending → cancelled : delete line items (stock was never deducted)
   ELSIF OLD.status = 'pending' AND NEW.status = 'cancelled' THEN
-    DELETE FROM public.sold_products WHERE cart_id = NEW.id;
+    DELETE FROM public.sold_products
+     WHERE cart_id = NEW.id;
+
+  -- completed → refunded : cart status change only.
+  --   The app is responsible for updating sold_products.refunded_quantity
+  --   (set all rows to quantity for full refund, or specific rows for partial).
+  --   The sold_products trigger below handles restocking the delta each time.
   END IF;
 
   RETURN NEW;
@@ -280,45 +261,61 @@ CREATE TRIGGER trg_manage_stock_on_cart_status_change
 
 
 -- =============================================================================
--- TRIGGER FUNCTION: restock on refund_items INSERT
+-- TRIGGER FUNCTION: restock on sold_products refunded_quantity change
 --
---   Fires once per refund line item inserted. Restores stock for the
---   product referenced by that sold_products row.
+--   Fires when refunded_quantity increases. Restocks the delta (new - old).
+--   Automatically sets status = 'refunded' when refunded_quantity = quantity.
 --
---   App flow for a refund:
---     1. INSERT INTO refunds  (cart_id, processed_by, reason, refund_amount)
---     2. INSERT INTO refund_items (refund_id, sold_product_id, quantity, unit_price)
---        -- one row per returned line item; trigger handles restocking
+--   This handles both:
+--     - Partial refund : increase refunded_quantity by the returned amount
+--     - Full refund    : set refunded_quantity = quantity (status auto-set)
 --
---   No further coordination needed between cart status and line items.
+--   App flow:
+--     UPDATE sold_products
+--        SET refunded_quantity = refunded_quantity + :amount
+--      WHERE id = :soldProductId
 -- =============================================================================
 
-CREATE OR REPLACE FUNCTION public.restock_on_refund_item()
+CREATE OR REPLACE FUNCTION public.restock_on_sold_product_refund()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_delta INTEGER;
 BEGIN
-  UPDATE public.products p
-     SET stock = stock + NEW.quantity
-    FROM public.sold_products sp
-   WHERE sp.id         = NEW.sold_product_id
-     AND sp.product_id = p.id;
+  -- Only act when refunded_quantity increases
+  IF NEW.refunded_quantity <= OLD.refunded_quantity THEN
+    RETURN NEW;
+  END IF;
+
+  v_delta := NEW.refunded_quantity - OLD.refunded_quantity;
+
+  -- Restock the delta
+  IF NEW.product_id IS NOT NULL THEN
+    UPDATE public.products
+       SET stock = stock + v_delta
+     WHERE id = NEW.product_id;
+  END IF;
+
+  -- Auto-set status to 'refunded' when fully refunded
+  IF NEW.refunded_quantity = NEW.quantity THEN
+    NEW.status := 'refunded';
+  END IF;
 
   RETURN NEW;
 END;
 $$;
 
-CREATE TRIGGER trg_restock_on_refund_item
-  AFTER INSERT ON public.refund_items
-  FOR EACH ROW EXECUTE FUNCTION public.restock_on_refund_item();
+CREATE TRIGGER trg_restock_on_sold_product_refund
+  BEFORE UPDATE OF refunded_quantity ON public.sold_products
+  FOR EACH ROW EXECUTE FUNCTION public.restock_on_sold_product_refund();
 
 
 -- =============================================================================
 -- TRIGGER FUNCTION: cart total recalculation
---   carts.total = the original sale total (immutable after completion).
---   Net amount after refunds is computed via the cart_refund_status view.
+--   Recalculates cart total whenever sold_products are inserted/updated/deleted.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.recalculate_cart_total()
@@ -330,11 +327,15 @@ AS $$
 DECLARE
   v_cart_id UUID;
 BEGIN
-  v_cart_id := CASE TG_OP WHEN 'DELETE' THEN OLD.cart_id ELSE NEW.cart_id END;
+  IF TG_OP = 'DELETE' THEN
+    v_cart_id := OLD.cart_id;
+  ELSE
+    v_cart_id := NEW.cart_id;
+  END IF;
 
   UPDATE public.carts
      SET total = COALESCE((
-           SELECT SUM(quantity * unit_price)
+           SELECT SUM((quantity - refunded_quantity) * unit_price)
              FROM public.sold_products
             WHERE cart_id = v_cart_id
          ), 0)
@@ -350,9 +351,9 @@ CREATE TRIGGER trg_recalculate_cart_total
 
 
 -- =============================================================================
--- TRIGGER FUNCTION: clear product attributes when category is removed
---   When category_id is set to NULL (via ON DELETE SET NULL or manual update),
---   clear the attributes JSONB so stale keys don't linger.
+-- TRIGGER FUNCTION: clear product attributes when category is deleted
+--   When a category is deleted, category_id becomes NULL (ON DELETE SET NULL).
+--   This trigger clears the attributes JSONB column when that happens.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.clear_product_attributes_on_category_delete()
@@ -362,9 +363,11 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  -- When category_id changes from a value to NULL, clear attributes
   IF OLD.category_id IS NOT NULL AND NEW.category_id IS NULL THEN
     NEW.attributes = '{}'::JSONB;
   END IF;
+  
   RETURN NEW;
 END;
 $$;
@@ -374,122 +377,6 @@ CREATE TRIGGER trg_clear_product_attributes_on_category_delete
   FOR EACH ROW
   WHEN (OLD.category_id IS DISTINCT FROM NEW.category_id)
   EXECUTE FUNCTION public.clear_product_attributes_on_category_delete();
-
-
--- =============================================================================
--- VIEWS
--- =============================================================================
-
--- ---------------------------------------------------------------------------
--- cart_refund_status
---   Derives refund status per cart from the ledger.
---   Returns: sale_total, refunded_amount, net_amount, refund_status
---   refund_status: 'not_refunded' | 'partially_refunded' | 'fully_refunded'
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.cart_refund_status AS
-WITH sale_totals AS (
-  SELECT cart_id,
-         SUM(quantity * unit_price) AS sale_total,
-         SUM(quantity)              AS sold_units
-    FROM public.sold_products
-   GROUP BY cart_id
-),
-refund_totals AS (
-  SELECT r.cart_id,
-         SUM(ri.quantity * ri.unit_price) AS refunded_amount,
-         SUM(ri.quantity)                 AS refunded_units
-    FROM public.refunds      r
-    JOIN public.refund_items ri ON ri.refund_id = r.id
-   GROUP BY r.cart_id
-)
-SELECT c.id                                                           AS cart_id,
-       COALESCE(st.sale_total, 0)                                     AS sale_total,
-       COALESCE(rt.refunded_amount, 0)                                AS refunded_amount,
-       COALESCE(st.sale_total, 0) - COALESCE(rt.refunded_amount, 0)  AS net_amount,
-       CASE
-         WHEN rt.refunded_units IS NULL             THEN 'not_refunded'
-         WHEN rt.refunded_units >= st.sold_units    THEN 'fully_refunded'
-         ELSE                                            'partially_refunded'
-       END                                                            AS refund_status
-  FROM public.carts       c
-  LEFT JOIN sale_totals   st ON st.cart_id = c.id
-  LEFT JOIN refund_totals rt ON rt.cart_id = c.id;
-
-
--- ---------------------------------------------------------------------------
--- cart_summary
---   Carts joined with customer name, admin name, and refund status.
---   Use for order list / admin panel views — avoids joining 5 tables each time.
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.cart_summary AS
-SELECT c.id,
-       c.status,
-       c.total,
-       c.notes,
-       c.created_at,
-       c.updated_at,
-       cu.full_name  AS customer_name,
-       cu.email      AS customer_email,
-       a.full_name   AS processed_by_name,
-       crs.refunded_amount,
-       crs.net_amount,
-       crs.refund_status
-  FROM public.carts              c
-  LEFT JOIN public.customers     cu  ON cu.id  = c.customer_id
-  LEFT JOIN public.admins        a   ON a.id   = c.processed_by
-  LEFT JOIN public.cart_refund_status crs ON crs.cart_id = c.id;
-
-
--- ---------------------------------------------------------------------------
--- cart_line_items
---   sold_products joined with product name and total refunded quantity
---   aggregated across all refund events for that line item.
---   Use for order detail pages, receipts, and any "bought X, returned Y" UI.
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.cart_line_items AS
-SELECT sp.id              AS sold_product_id,
-       sp.cart_id,
-       sp.quantity        AS sold_quantity,
-       sp.unit_price,
-       sp.quantity * sp.unit_price              AS line_total,
-       COALESCE(ri_agg.refunded_quantity, 0)    AS refunded_quantity,
-       (sp.quantity - COALESCE(ri_agg.refunded_quantity, 0)) * sp.unit_price AS net_line_total,
-       p.id               AS product_id,
-       p.name             AS product_name,
-       p.attributes       AS product_attributes
-  FROM public.sold_products sp
-  LEFT JOIN public.products p ON p.id = sp.product_id
-  LEFT JOIN (
-    SELECT ri.sold_product_id,
-           SUM(ri.quantity) AS refunded_quantity
-      FROM public.refund_items ri
-     GROUP BY ri.sold_product_id
-  ) ri_agg ON ri_agg.sold_product_id = sp.id;
-
-
--- ---------------------------------------------------------------------------
--- refund_detail
---   refunds joined with refund_items, product name, and processing admin.
---   Use for refund history panels and reporting on what was returned and when.
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.refund_detail AS
-SELECT r.id              AS refund_id,
-       r.cart_id,
-       r.refund_amount,
-       r.created_at      AS refunded_at,
-       a.full_name       AS processed_by_name,
-       ri.id             AS refund_item_id,
-       ri.sold_product_id,
-       ri.quantity       AS refunded_quantity,
-       ri.unit_price,
-       ri.quantity * ri.unit_price AS refund_line_total,
-       p.id              AS product_id,
-       p.name            AS product_name
-  FROM public.refunds      r
-  LEFT JOIN public.admins        a  ON a.id  = r.processed_by
-  JOIN      public.refund_items  ri ON ri.refund_id = r.id
-  LEFT JOIN public.sold_products sp ON sp.id = ri.sold_product_id
-  LEFT JOIN public.products      p  ON p.id  = sp.product_id;
 
 
 -- =============================================================================
@@ -503,8 +390,6 @@ ALTER TABLE public.customers           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admins              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.carts               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sold_products       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.refunds             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.refund_items        ENABLE ROW LEVEL SECURITY;
 
 
 -- ---------------------------------------------------------------------------
@@ -523,7 +408,7 @@ CREATE POLICY "categories_insert"
 CREATE POLICY "categories_update"
   ON public.categories FOR UPDATE
   TO authenticated
-  USING  (public.is_admin(auth.uid()))
+  USING (public.is_admin(auth.uid()))
   WITH CHECK (public.is_admin(auth.uid()));
 
 CREATE POLICY "categories_delete"
@@ -558,7 +443,7 @@ CREATE POLICY "category_attributes_delete"
 
 
 -- ---------------------------------------------------------------------------
--- Products: active products publicly readable, admin full write
+-- Products: active products are publicly readable, admin full write
 -- ---------------------------------------------------------------------------
 CREATE POLICY "products_select"
   ON public.products FOR SELECT
@@ -573,7 +458,7 @@ CREATE POLICY "products_insert"
 CREATE POLICY "products_update"
   ON public.products FOR UPDATE
   TO authenticated
-  USING  (public.is_admin(auth.uid()))
+  USING (public.is_admin(auth.uid()))
   WITH CHECK (public.is_admin(auth.uid()));
 
 CREATE POLICY "products_delete"
@@ -598,7 +483,7 @@ CREATE POLICY "customers_insert"
 CREATE POLICY "customers_update"
   ON public.customers FOR UPDATE
   TO authenticated
-  USING  (id = auth.uid() OR public.is_admin(auth.uid()))
+  USING (id = auth.uid() OR public.is_admin(auth.uid()))
   WITH CHECK (id = auth.uid() OR public.is_admin(auth.uid()));
 
 
@@ -638,7 +523,7 @@ CREATE POLICY "carts_insert"
 CREATE POLICY "carts_update"
   ON public.carts FOR UPDATE
   TO authenticated
-  USING  (public.is_admin(auth.uid()))
+  USING (public.is_admin(auth.uid()))
   WITH CHECK (public.is_admin(auth.uid()));
 
 CREATE POLICY "carts_delete"
@@ -674,57 +559,5 @@ CREATE POLICY "sold_products_update"
 
 CREATE POLICY "sold_products_delete"
   ON public.sold_products FOR DELETE
-  TO authenticated
-  USING (public.is_admin(auth.uid()));
-
-
--- ---------------------------------------------------------------------------
--- Refunds: customers see refunds on their own carts; admins see all
--- ---------------------------------------------------------------------------
-CREATE POLICY "refunds_select"
-  ON public.refunds FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.carts
-       WHERE carts.id = refunds.cart_id
-         AND (carts.customer_id = auth.uid() OR public.is_admin(auth.uid()))
-    )
-  );
-
-CREATE POLICY "refunds_insert"
-  ON public.refunds FOR INSERT
-  TO authenticated
-  WITH CHECK (public.is_admin(auth.uid()));
-
-CREATE POLICY "refunds_delete"
-  ON public.refunds FOR DELETE
-  TO authenticated
-  USING (public.is_admin(auth.uid()));
-
-
--- ---------------------------------------------------------------------------
--- Refund Items: access inherited through refund → cart → customer
--- ---------------------------------------------------------------------------
-CREATE POLICY "refund_items_select"
-  ON public.refund_items FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1
-        FROM public.refunds r
-        JOIN public.carts   c ON c.id = r.cart_id
-       WHERE r.id = refund_items.refund_id
-         AND (c.customer_id = auth.uid() OR public.is_admin(auth.uid()))
-    )
-  );
-
-CREATE POLICY "refund_items_insert"
-  ON public.refund_items FOR INSERT
-  TO authenticated
-  WITH CHECK (public.is_admin(auth.uid()));
-
-CREATE POLICY "refund_items_delete"
-  ON public.refund_items FOR DELETE
   TO authenticated
   USING (public.is_admin(auth.uid()));

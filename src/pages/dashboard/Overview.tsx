@@ -5,34 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Package, Users, ShoppingCart, DollarSign, AlertTriangle, TrendingUp, Clock, ArrowUpRight, Tags } from "lucide-react";
-import { formatCurrency, formatDateTime, getLocalDateRange } from "@/lib/formatters";
+import { formatCurrency, formatDateTime, getLocalDateRange, formatRelativeTime } from "@/lib/formatters";
 import { StatCardSkeleton, LoadingGrid } from "@/components/LoadingGrid";
 import { CartDetailModal } from "@/components/CartDetailModal";
-
-/**
- * Format a date to relative time (e.g., "2 hours ago", "Just now")
- */
-function formatRelativeTime(date: string | Date): string {
-  const now = new Date();
-  const then = new Date(date);
-  const diffInSeconds = Math.floor((now.getTime() - then.getTime()) / 1000);
-  
-  if (diffInSeconds < 60) return "Just now";
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-  
-  return formatDateTime(date);
-}
 
 interface Cart {
   id: string;
   total: number;
   created_at: string;
   status?: string;
+  refund_status?: string;
   customers?: { full_name?: string };
   admins?: { id?: string; full_name?: string };
-  sold_products?: { quantity: number; refunded_quantity: number; status?: string; products?: { name?: string } }[];
+  line_items?: { sold_quantity: number; refunded_quantity: number; product_name?: string }[];
 }
 
 interface Product {
@@ -58,22 +43,54 @@ export default function Overview() {
       supabase.from("categories").select("id", { count: "exact", head: true }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
       supabase.from("carts").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed"),
-      supabase.from("carts").select("*, customers(full_name), admins(full_name), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
+      supabase.from("cart_summary").select("*").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
       supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
-      supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
-    ]).then(([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
+      supabase.from("sold_products").select("quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
+    ]).then(async ([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
       const todayCarts = todayCartsRes.data || [];
       const soldProducts = soldProductsRes.data || [];
+      const cartsData = recentRes.data || [];
       
-      // Calculate profit: (unit_price - cost) * (quantity - refunded_quantity)
+      // Calculate profit: (unit_price - cost) * quantity
+      // Note: This is approximate as we don't track cost at time of sale
       const profitToday = soldProducts.reduce((total, sp) => {
         const cost = Number(sp.products?.cost || 0);
         const unitPrice = Number(sp.unit_price || 0);
         const quantity = Number(sp.quantity || 0);
-        const refundedQty = Number(sp.refunded_quantity || 0);
-        const activeQty = quantity - refundedQty;
-        return total + ((unitPrice - cost) * activeQty);
+        return total + ((unitPrice - cost) * quantity);
       }, 0);
+      
+      // Fetch line items for each cart
+      if (cartsData.length > 0) {
+        const cartIds = cartsData.map(c => c.id);
+        const { data: lineItemsData } = await supabase
+          .from("cart_line_items")
+          .select("cart_id, product_name, sold_quantity, refunded_quantity")
+          .in("cart_id", cartIds);
+        
+        // Group line items by cart_id
+        const lineItemsByCart: Record<string, { product_name: string | null; sold_quantity: number; refunded_quantity: number }[]> = {};
+        lineItemsData?.forEach(item => {
+          if (!lineItemsByCart[item.cart_id]) {
+            lineItemsByCart[item.cart_id] = [];
+          }
+          lineItemsByCart[item.cart_id].push({
+            product_name: item.product_name,
+            sold_quantity: item.sold_quantity,
+            refunded_quantity: item.refunded_quantity
+          });
+        });
+        
+        // Attach line items to each cart
+        const cartsWithItems = cartsData.map(cart => ({
+          ...cart,
+          line_items: lineItemsByCart[cart.id] || []
+        }));
+        
+        setRecentCarts(cartsWithItems);
+      } else {
+        setRecentCarts([]);
+      }
       
       setStats({
         products: productsRes.count || 0,
@@ -83,7 +100,6 @@ export default function Overview() {
         revenueToday: todayCarts.reduce((s, c) => s + Number(c.total), 0),
         profitToday,
       });
-      setRecentCarts(recentRes.data || []);
       setLowStock(lowStockRes.data || []);
       setLoading(false);
     });
@@ -180,7 +196,7 @@ export default function Overview() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium leading-none">
-                          {formatRelativeTime(cart.created_at)} • {cart.sold_products?.length || 0} items
+                          {formatRelativeTime(cart.created_at)} • {cart.line_items?.length || 0} items
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           Processed by: {cart.admins?.full_name || "Unknown"}
@@ -193,13 +209,13 @@ export default function Overview() {
                     </div>
                     <div className="mt-2 pt-2 border-t border-dashed">
                       <p className="text-xs font-medium text-foreground mb-1">Items:</p>
-                      {cart.sold_products && cart.sold_products.length > 0 && (
+                      {cart.line_items && cart.line_items.length > 0 && (
                         <div className="flex flex-wrap gap-2">
-                          {cart.sold_products.slice(0, 4).map((sp, idx) => {
-                            const isFullyRefunded = sp.status === 'refunded';
-                            const refundedQty = sp.refunded_quantity || 0;
-                            const isPartiallyRefunded = refundedQty > 0 && sp.status === 'active';
-                            const activeQty = sp.quantity - refundedQty;
+                          {cart.line_items.slice(0, 4).map((item, idx) => {
+                            const refundedQty = item.refunded_quantity || 0;
+                            const isFullyRefunded = refundedQty >= item.sold_quantity;
+                            const isPartiallyRefunded = refundedQty > 0 && !isFullyRefunded;
+                            const activeQty = item.sold_quantity - refundedQty;
                             
                             return (
                               <span 
@@ -212,15 +228,15 @@ export default function Overview() {
                                       : 'bg-muted text-muted-foreground'
                                 }`}
                               >
-                                {sp.products?.name || "Unknown"} ({isPartiallyRefunded ? `${activeQty}/${sp.quantity}` : sp.quantity})
+                                {item.product_name || "Unknown"} ({isPartiallyRefunded ? `${activeQty}/${item.sold_quantity}` : item.sold_quantity})
                                 {isFullyRefunded && ' - Refunded'}
                                 {isPartiallyRefunded && ' - Partial'}
                               </span>
                             );
                           })}
-                          {cart.sold_products.length > 4 && (
+                          {cart.line_items.length > 4 && (
                             <span className="text-sm text-muted-foreground px-2 py-1">
-                              +{cart.sold_products.length - 4} more
+                              +{cart.line_items.length - 4} more
                             </span>
                           )}
                         </div>
@@ -302,21 +318,52 @@ export default function Overview() {
             supabase.from("categories").select("id", { count: "exact", head: true }),
             supabase.from("customers").select("id", { count: "exact", head: true }),
             supabase.from("carts").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed"),
-            supabase.from("carts").select("*, customers(full_name), admins(full_name), sold_products(quantity, refunded_quantity, status, products(name))").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
+            supabase.from("cart_summary").select("*").eq("status", "completed").order("created_at", { ascending: false }).limit(10),
             supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
-            supabase.from("sold_products").select("quantity, refunded_quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
-          ]).then(([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
+            supabase.from("sold_products").select("quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
+          ]).then(async ([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
             const todayCarts = todayCartsRes.data || [];
             const soldProducts = soldProductsRes.data || [];
+            const cartsData = recentRes.data || [];
             
             const profitToday = soldProducts.reduce((total, sp) => {
               const cost = Number(sp.products?.cost || 0);
               const unitPrice = Number(sp.unit_price || 0);
               const quantity = Number(sp.quantity || 0);
-              const refundedQty = Number(sp.refunded_quantity || 0);
-              const activeQty = quantity - refundedQty;
-              return total + ((unitPrice - cost) * activeQty);
+              return total + ((unitPrice - cost) * quantity);
             }, 0);
+
+            // Fetch line items for each cart
+            if (cartsData.length > 0) {
+              const cartIds = cartsData.map(c => c.id);
+              const { data: lineItemsData } = await supabase
+                .from("cart_line_items")
+                .select("cart_id, product_name, sold_quantity, refunded_quantity")
+                .in("cart_id", cartIds);
+              
+              // Group line items by cart_id
+              const lineItemsByCart: Record<string, { product_name: string | null; sold_quantity: number; refunded_quantity: number }[]> = {};
+              lineItemsData?.forEach(item => {
+                if (!lineItemsByCart[item.cart_id]) {
+                  lineItemsByCart[item.cart_id] = [];
+                }
+                lineItemsByCart[item.cart_id].push({
+                  product_name: item.product_name,
+                  sold_quantity: item.sold_quantity,
+                  refunded_quantity: item.refunded_quantity
+                });
+              });
+              
+              // Attach line items to each cart
+              const cartsWithItems = cartsData.map(cart => ({
+                ...cart,
+                line_items: lineItemsByCart[cart.id] || []
+              }));
+              
+              setRecentCarts(cartsWithItems);
+            } else {
+              setRecentCarts([]);
+            }
             
             setStats({
               products: productsRes.count || 0,
@@ -326,7 +373,6 @@ export default function Overview() {
               revenueToday: todayCarts.reduce((s, c) => s + Number(c.total), 0),
               profitToday,
             });
-            setRecentCarts(recentRes.data || []);
             setLowStock(lowStockRes.data || []);
           });
         }}

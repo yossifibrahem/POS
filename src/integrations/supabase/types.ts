@@ -228,8 +228,6 @@ export type Database = {
           id: string
           product_id: string
           quantity: number
-          refunded_quantity: number
-          status: string
           unit_price: number
         }
         Insert: {
@@ -238,8 +236,6 @@ export type Database = {
           id?: string
           product_id: string
           quantity?: number
-          refunded_quantity?: number
-          status?: string
           unit_price: number
         }
         Update: {
@@ -248,8 +244,6 @@ export type Database = {
           id?: string
           product_id?: string
           quantity?: number
-          refunded_quantity?: number
-          status?: string
           unit_price?: number
         }
         Relationships: [
@@ -269,9 +263,239 @@ export type Database = {
           },
         ]
       }
+      refunds: {
+        Row: {
+          id: string
+          cart_id: string
+          processed_by: string | null
+          refund_amount: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          cart_id: string
+          processed_by?: string | null
+          refund_amount: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          cart_id?: string
+          processed_by?: string | null
+          refund_amount?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refunds_cart_id_fkey"
+            columns: ["cart_id"]
+            isOneToOne: false
+            referencedRelation: "carts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_processed_by_fkey"
+            columns: ["processed_by"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      refund_items: {
+        Row: {
+          id: string
+          refund_id: string
+          sold_product_id: string
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          id?: string
+          refund_id: string
+          sold_product_id: string
+          quantity: number
+          unit_price: number
+        }
+        Update: {
+          id?: string
+          refund_id?: string
+          sold_product_id?: string
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refund_items_refund_id_fkey"
+            columns: ["refund_id"]
+            isOneToOne: false
+            referencedRelation: "refunds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_items_sold_product_id_fkey"
+            columns: ["sold_product_id"]
+            isOneToOne: false
+            referencedRelation: "sold_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      cart_refund_status: {
+        Row: {
+          cart_id: string | null
+          sale_total: number | null
+          refunded_amount: number | null
+          net_amount: number | null
+          refund_status: string | null
+        }
+        Insert: {
+          cart_id?: string | null
+          sale_total?: number | null
+          refunded_amount?: number | null
+          net_amount?: number | null
+          refund_status?: string | null
+        }
+        Update: {
+          cart_id?: string | null
+          sale_total?: number | null
+          refunded_amount?: number | null
+          net_amount?: number | null
+          refund_status?: string | null
+        }
+        Relationships: []
+      }
+      cart_summary: {
+        Row: {
+          id: string | null
+          status: string | null
+          total: number | null
+          notes: string | null
+          created_at: string | null
+          updated_at: string | null
+          customer_name: string | null
+          customer_email: string | null
+          processed_by_name: string | null
+          refunded_amount: number | null
+          net_amount: number | null
+          refund_status: string | null
+        }
+        Insert: {
+          id?: string | null
+          status?: string | null
+          total?: number | null
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          customer_name?: string | null
+          customer_email?: string | null
+          processed_by_name?: string | null
+          refunded_amount?: number | null
+          net_amount?: number | null
+          refund_status?: string | null
+        }
+        Update: {
+          id?: string | null
+          status?: string | null
+          total?: number | null
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          customer_name?: string | null
+          customer_email?: string | null
+          processed_by_name?: string | null
+          refunded_amount?: number | null
+          net_amount?: number | null
+          refund_status?: string | null
+        }
+        Relationships: []
+      }
+      cart_line_items: {
+        Row: {
+          sold_product_id: string | null
+          cart_id: string | null
+          sold_quantity: number | null
+          unit_price: number | null
+          line_total: number | null
+          refunded_quantity: number | null
+          net_line_total: number | null
+          product_id: string | null
+          product_name: string | null
+          product_attributes: Json | null
+        }
+        Insert: {
+          sold_product_id?: string | null
+          cart_id?: string | null
+          sold_quantity?: number | null
+          unit_price?: number | null
+          line_total?: number | null
+          refunded_quantity?: number | null
+          net_line_total?: number | null
+          product_id?: string | null
+          product_name?: string | null
+          product_attributes?: Json | null
+        }
+        Update: {
+          sold_product_id?: string | null
+          cart_id?: string | null
+          sold_quantity?: number | null
+          unit_price?: number | null
+          line_total?: number | null
+          refunded_quantity?: number | null
+          net_line_total?: number | null
+          product_id?: string | null
+          product_name?: string | null
+          product_attributes?: Json | null
+        }
+        Relationships: []
+      }
+      refund_detail: {
+        Row: {
+          refund_id: string | null
+          cart_id: string | null
+          refund_amount: number | null
+          refunded_at: string | null
+          processed_by_name: string | null
+          refund_item_id: string | null
+          sold_product_id: string | null
+          refunded_quantity: number | null
+          unit_price: number | null
+          refund_line_total: number | null
+          product_id: string | null
+          product_name: string | null
+        }
+        Insert: {
+          refund_id?: string | null
+          cart_id?: string | null
+          refund_amount?: number | null
+          refunded_at?: string | null
+          processed_by_name?: string | null
+          refund_item_id?: string | null
+          sold_product_id?: string | null
+          refunded_quantity?: number | null
+          unit_price?: number | null
+          refund_line_total?: number | null
+          product_id?: string | null
+          product_name?: string | null
+        }
+        Update: {
+          refund_id?: string | null
+          cart_id?: string | null
+          refund_amount?: number | null
+          refunded_at?: string | null
+          processed_by_name?: string | null
+          refund_item_id?: string | null
+          sold_product_id?: string | null
+          refunded_quantity?: number | null
+          unit_price?: number | null
+          refund_line_total?: number | null
+          product_id?: string | null
+          product_name?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       is_admin: { Args: { _user_id: string }; Returns: boolean }

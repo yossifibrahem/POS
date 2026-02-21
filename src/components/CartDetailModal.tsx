@@ -9,13 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RotateCcw, Package, X } from "lucide-react";
+import { RotateCcw, Package } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Json } from "@/integrations/supabase/types";
-import { updateCartStatusIfAllRefunded } from "@/lib/cart";
 
 type CartRow = { 
   id: string; 
@@ -27,20 +26,15 @@ type CartRow = {
 };
 
 type SoldItemRow = { 
-  id: string; 
+  sold_product_id: string; 
   product_id: string; 
-  quantity: number; 
+  sold_quantity: number; 
   refunded_quantity: number;
-  status: string;
   unit_price: number; 
-  products?: { 
-    name?: string; 
-    stock?: number; 
-    price?: number;
-    cost?: number;
-    attributes?: Json;
-    categories?: { name?: string } | null;
-  } 
+  line_total: number;
+  net_line_total: number;
+  product_name: string | null;
+  product_attributes: Json | null;
 };
 
 interface CartDetailModalProps {
@@ -60,8 +54,8 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
     if (!cartId) return;
     const [cartRes, itemsRes] = await Promise.all([
       supabase.from("carts").select("*, customers(full_name, email), admins(full_name)").eq("id", cartId).single(),
-      // Fetch all sold_products including refunded ones for full history
-      supabase.from("sold_products").select("*, products(name, stock, price, cost, attributes, categories(name))").eq("cart_id", cartId),
+      // Use cart_line_items view for line items with refund info
+      supabase.from("cart_line_items").select("*").eq("cart_id", cartId),
     ]);
     if (cartRes.data) setCart(cartRes.data);
     setItems(itemsRes.data || []);
@@ -83,34 +77,44 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
 
   const handlePartialReturn = async (item: SoldItemRow) => {
     const currentRefunded = item.refunded_quantity || 0;
-    const qty = returnQty[item.id] ?? 1;
+    const qty = returnQty[item.sold_product_id] ?? 1;
     const newRefundedQty = currentRefunded + qty;
-    if (qty < 1 || newRefundedQty > item.quantity) return;
-    setReturningId(item.id);
+    if (qty < 1 || newRefundedQty > item.sold_quantity) return;
+    setReturningId(item.sold_product_id);
     try {
-      // Update refunded_quantity - DB trigger will:
-      // 1. Restock the delta (new - old refunded_quantity)
-      // 2. Auto-set status = 'refunded' when refunded_quantity = quantity
-      const { error: updateError } = await supabase
-        .from("sold_products")
-        .update({ refunded_quantity: newRefundedQty })
-        .eq("id", item.id)
-        .eq("status", "active");
+      // Step 1: Insert into refunds table
+      const refundAmount = qty * item.unit_price;
+      const { data: refundData, error: refundError } = await supabase
+        .from("refunds")
+        .insert({
+          cart_id: cartId,
+          refund_amount: refundAmount
+        })
+        .select()
+        .single();
 
-      if (updateError) throw updateError;
+      if (refundError) throw refundError;
+      if (!refundData) throw new Error("Failed to create refund record");
 
-      // Check if all products are now fully refunded and update cart status
-      if (cartId) {
-        await updateCartStatusIfAllRefunded(cartId);
-        if (onRefund) {
-          onRefund();
-        }
+      // Step 2: Insert into refund_items
+      const { error: itemError } = await supabase
+        .from("refund_items")
+        .insert({
+          refund_id: refundData.id,
+          sold_product_id: item.sold_product_id,
+          quantity: qty,
+          unit_price: item.unit_price
+        });
+
+      if (itemError) throw itemError;
+
+      if (onRefund) {
+        onRefund();
       }
 
-      // Database trigger will recalculate cart total
       setReturnQty((prev) => {
         const next = { ...prev };
-        delete next[item.id];
+        delete next[item.sold_product_id];
         return next;
       });
       await loadData();
@@ -159,21 +163,21 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
             {items.length > 0 && (
               <div className="grid gap-4 grid-cols-1">
                 {items.map((item) => {
-                  const attributes = getAttributes(item.products?.attributes);
+                  const attributes = getAttributes(item.product_attributes);
                   const hasAttributes = Object.keys(attributes).length > 0;
                   const refundedQty = item.refunded_quantity || 0;
-                  const isFullyRefunded = item.status === 'refunded';
-                  const isPartiallyRefunded = refundedQty > 0 && item.status === 'active';
-                  const activeQuantity = item.quantity - refundedQty;
+                  const isFullyRefunded = refundedQty >= item.sold_quantity;
+                  const isPartiallyRefunded = refundedQty > 0 && !isFullyRefunded;
+                  const activeQuantity = item.sold_quantity - refundedQty;
                   const activeSubtotal = activeQuantity * Number(item.unit_price);
                   const refundedSubtotal = refundedQty * Number(item.unit_price);
                   
                   return (
-                    <div key={item.id} className={`rounded-lg border bg-card p-4 ${isFullyRefunded ? 'opacity-60 bg-red-50' : ''}`}>
+                    <div key={item.sold_product_id} className={`rounded-lg border bg-card p-4 ${isFullyRefunded ? 'opacity-60 bg-red-50' : ''}`}>
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 text-sm font-medium">
                           <Package className="h-4 w-4 text-muted-foreground" />
-                          {item.products?.name}
+                          {item.product_name}
                         </div>
                         <div className="flex items-center gap-2">
                           {isFullyRefunded && (
@@ -186,18 +190,13 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                               Partial Refund
                             </Badge>
                           )}
-                          {item.products?.categories?.name && (
-                            <Badge variant="secondary" className="text-xs">
-                              {item.products.categories.name}
-                            </Badge>
-                          )}
                         </div>
                       </div>
                       
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
                           <span>Sold Qty</span>
-                          <span className="font-medium">{item.quantity}</span>
+                          <span className="font-medium">{item.sold_quantity}</span>
                         </div>
                         {isPartiallyRefunded && (
                           <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -213,46 +212,12 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                         )}
                         <div className="flex items-center justify-between text-sm">
                           <span>Unit Price</span>
-                          <span className="font-medium">${Number(item.products?.price || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span>Sold Price</span>
                           <span className="font-medium">${Number(item.unit_price).toFixed(2)}</span>
                         </div>
-                        {item.products?.price && item.products.price > item.unit_price && (
-                          <div className="flex items-center justify-between text-sm text-green-600">
-                            <span>Discount</span>
-                            <span className="font-medium">-${(item.products.price - item.unit_price).toFixed(2)}</span>
-                          </div>
-                        )}
-                        {item.products?.price && item.products.price < item.unit_price && (
-                          <div className="flex items-center justify-between text-sm text-amber-600">
-                            <span>Extra</span>
-                            <span className="font-medium">+${(item.unit_price - item.products.price).toFixed(2)}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between text-sm">
-                          <span>Unit Cost</span>
-                          <span className="font-medium">${Number(item.products?.cost || 0).toFixed(2)}</span>
-                        </div>
                         <Separator className="my-2" />
-                        {item.products?.price && item.products.price > item.unit_price && (
-                          <div className="flex items-center justify-between text-sm">
-                            <span>Line Discount</span>
-                            <span className="font-medium text-green-600">
-                              ${((item.products.price - item.unit_price) * activeQuantity).toFixed(2)}
-                            </span>
-                          </div>
-                        )}
                         <div className="flex items-center justify-between text-sm">
                           <span>Line Total</span>
                           <span className={`font-semibold ${isFullyRefunded ? 'line-through' : ''}`}>${activeSubtotal.toFixed(2)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span>Line Profit</span>
-                          <span className={`font-semibold ${((item.unit_price - Number(item.products?.cost || 0)) * activeQuantity) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            ${((item.unit_price - Number(item.products?.cost || 0)) * activeQuantity).toFixed(2)}
-                          </span>
                         </div>
                         
                         {/* Product Attributes Section */}
@@ -286,8 +251,8 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                         {!isFullyRefunded && activeQuantity > 0 && (
                           <div className="flex items-center justify-between gap-2 pt-2 border-t">
                             <Select
-                              value={String(returnQty[item.id] ?? 1)}
-                              onValueChange={(v) => setReturnQty((p) => ({ ...p, [item.id]: parseInt(v, 10) }))}
+                              value={String(returnQty[item.sold_product_id] ?? 1)}
+                              onValueChange={(v) => setReturnQty((p) => ({ ...p, [item.sold_product_id]: parseInt(v, 10) }))}
                             >
                               <SelectTrigger className="h-8 w-20">
                                 <SelectValue />
@@ -303,9 +268,9 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                               size="sm"
                               className="gap-1 h-8 text-red-500 hover:text-red-600"
                               onClick={() => handlePartialReturn(item)}
-                              disabled={returningId === item.id}
+                              disabled={returningId === item.sold_product_id}
                             >
-                              {returningId === item.id ? "..." : <><RotateCcw className="h-3 w-3" /> Return</>}
+                              {returningId === item.sold_product_id ? "..." : <><RotateCcw className="h-3 w-3" /> Return</>}
                             </Button>
                           </div>
                         )}
@@ -320,41 +285,10 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
             {items.length > 0 && (
               <div className="rounded-lg border bg-card p-4 space-y-2 mt-4">
                 <div className="text-sm font-semibold mb-3">Cart Summary</div>
-                {(() => {
-                  const totalDiscount = items.reduce((sum, item) => {
-                    const activeQty = item.quantity - (item.refunded_quantity || 0);
-                    const originalPrice = item.products?.price || 0;
-                    const discountPerUnit = originalPrice > item.unit_price ? originalPrice - item.unit_price : 0;
-                    return sum + (discountPerUnit * activeQty);
-                  }, 0);
-                  
-                  const totalProfit = items.reduce((sum, item) => {
-                    const activeQty = item.quantity - (item.refunded_quantity || 0);
-                    const cost = item.products?.cost || 0;
-                    return sum + ((item.unit_price - cost) * activeQty);
-                  }, 0);
-                  
-                  return (
-                    <>
-                      {totalDiscount > 0 && (
-                        <div className="flex items-center justify-between text-sm">
-                          <span>Line Discount (Total)</span>
-                          <span className="font-medium text-green-600">${totalDiscount.toFixed(2)}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Line Total (Total)</span>
-                        <span className="font-semibold">${Number(cart.total).toFixed(2)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Line Profit (Total)</span>
-                        <span className={`font-semibold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ${totalProfit.toFixed(2)}
-                        </span>
-                      </div>
-                    </>
-                  );
-                })()}
+                <div className="flex items-center justify-between text-sm">
+                  <span>Total</span>
+                  <span className="font-semibold">${Number(cart.total).toFixed(2)}</span>
+                </div>
               </div>
             )}
 
