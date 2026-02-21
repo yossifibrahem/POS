@@ -7,7 +7,6 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Account from "./pages/Account";
 import DashboardLayout from "./components/DashboardLayout";
 import Overview from "./pages/dashboard/Overview";
 import Products from "./pages/dashboard/Products";
@@ -29,9 +28,6 @@ const App = () => (
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/account" element={
-              <ProtectedRoute><Account /></ProtectedRoute>
-            } />
             <Route path="/dashboard" element={
               <ProtectedRoute adminOnly><DashboardLayout /></ProtectedRoute>
             }>

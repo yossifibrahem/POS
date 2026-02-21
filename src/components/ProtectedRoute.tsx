@@ -13,7 +13,7 @@ export function ProtectedRoute({ children, adminOnly = false }: { children: Reac
   }
 
   if (adminOnly && !isAdmin) {
-    return <Navigate to="/account" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

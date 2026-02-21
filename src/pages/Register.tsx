@@ -36,7 +36,7 @@ export default function Register() {
     }
 
     if (data.user) {
-      // Insert into profiles first (single source of truth for identity)
+      // Insert into profiles (single source of truth for identity)
       const { error: profileError } = await supabase.from("profiles").insert({
         id: data.user.id,
         full_name: fullName,
@@ -47,16 +47,7 @@ export default function Register() {
       if (profileError) {
         toast.error("Account created but profile failed: " + profileError.message);
       } else {
-        // Then insert into customers (role marker only)
-        const { error: customerError } = await supabase.from("customers").insert({
-          id: data.user.id,
-        });
-
-        if (customerError) {
-          toast.error("Profile created but customer role failed: " + customerError.message);
-        } else {
-          toast.success("Account created! Please check your email to verify.");
-        }
+        toast.success("Account created! Please check your email to verify.");
       }
     }
 

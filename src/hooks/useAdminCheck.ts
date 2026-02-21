@@ -14,11 +14,11 @@ export function useAdminCheck() {
       if (adminCheck) {
         navigate("/dashboard");
       } else {
-        navigate("/account");
+        navigate("/login");
       }
     } catch (e) {
-      // If admin check fails, default to account page
-      navigate("/account");
+      // If admin check fails, default to login page
+      navigate("/login");
     }
   }, [navigate]);
 
