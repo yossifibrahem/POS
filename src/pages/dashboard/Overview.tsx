@@ -42,7 +42,7 @@ export default function Overview() {
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("categories").select("id", { count: "exact", head: true }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
-      supabase.from("carts").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed"),
+      supabase.from("cart_summary").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed").neq("refund_status", "fully_refunded"),
       supabase.from("cart_summary").select("*").eq("status", "completed").gte("created_at", start).lte("created_at", end).neq("refund_status", "fully_refunded").order("created_at", { ascending: false }).limit(10),
       supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
       supabase.from("sold_products").select("quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
@@ -188,7 +188,7 @@ export default function Overview() {
               </div>
             ) : (
               <div className="space-y-2">
-                {recentCarts.slice(0, 8).map((cart) => (
+                {recentCarts.slice(0, 3).map((cart) => (
                   <div 
                     key={cart.id} 
                     className="group p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
@@ -326,7 +326,7 @@ export default function Overview() {
             supabase.from("products").select("id", { count: "exact", head: true }),
             supabase.from("categories").select("id", { count: "exact", head: true }),
             supabase.from("customers").select("id", { count: "exact", head: true }),
-            supabase.from("carts").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed"),
+            supabase.from("cart_summary").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed").neq("refund_status", "fully_refunded"),
             supabase.from("cart_summary").select("*").eq("status", "completed").gte("created_at", start).lte("created_at", end).neq("refund_status", "fully_refunded").order("created_at", { ascending: false }).limit(10),
             supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
             supabase.from("sold_products").select("quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
