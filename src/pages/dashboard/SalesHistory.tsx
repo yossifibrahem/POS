@@ -226,7 +226,7 @@ export default function SalesHistory() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">{formatCurrency(Number(c.total))}</span>
+                  <span className="text-sm font-semibold">{formatCurrency(Number(c.net_amount ?? c.total))}</span>
                   <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
