@@ -48,7 +48,7 @@ export default function Customers() {
 
   const handlePromote = async () => {
     if (!promoteTarget) return;
-    const { error } = await supabase.from("admins").insert({ id: promoteTarget.id });
+    const { error } = await supabase.from("admins").insert({ id: promoteTarget.id, full_name: promoteTarget.full_name });
     if (error) handleError(error); else { handleSuccess(`${promoteTarget.full_name} promoted to admin`); load(); }
     setPromoteTarget(null);
   };
