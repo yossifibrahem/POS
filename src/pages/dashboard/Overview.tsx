@@ -14,6 +14,7 @@ import { CartDetailModal } from "@/components/CartDetailModal";
 interface Cart {
   id: string;
   total: number;
+  net_amount?: number;
   created_at: string;
   status?: string;
   refund_status?: string;
@@ -45,22 +46,24 @@ export default function Overview() {
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("categories").select("id", { count: "exact", head: true }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
-      supabase.from("cart_summary").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed").neq("refund_status", "fully_refunded"),
+      supabase.from("cart_summary").select("total, net_amount").gte("created_at", start).lte("created_at", end).eq("status", "completed").neq("refund_status", "fully_refunded"),
       supabase.from("cart_summary").select("*").eq("status", "completed").gte("created_at", start).lte("created_at", end).neq("refund_status", "fully_refunded").order("created_at", { ascending: false }).limit(10),
       supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
-      supabase.from("sold_products").select("quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
-    ]).then(async ([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
+      supabase.from("cart_line_items").select("sold_quantity, refunded_quantity, unit_price, product_cost, carts!inner(created_at)").gte("carts.created_at", start).lte("carts.created_at", end),
+    ]).then(async ([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, lineItemsRes]) => {
       const todayCarts = todayCartsRes.data || [];
-      const soldProducts = soldProductsRes.data || [];
+      const lineItems = lineItemsRes.data || [];
       const cartsData = recentRes.data || [];
       
-      // Calculate profit: (unit_price - cost) * quantity
-      // Note: This is approximate as we don't track cost at time of sale
-      const profitToday = soldProducts.reduce((total, sp) => {
-        const cost = Number(sp.products?.cost || 0);
-        const unitPrice = Number(sp.unit_price || 0);
-        const quantity = Number(sp.quantity || 0);
-        return total + ((unitPrice - cost) * quantity);
+      // Calculate profit: (unit_price - cost) * (sold_quantity - refunded_quantity)
+      // This properly excludes refunded items from profit calculation
+      const profitToday = lineItems.reduce((total, item) => {
+        const cost = Number(item.product_cost || 0);
+        const unitPrice = Number(item.unit_price || 0);
+        const soldQty = Number(item.sold_quantity || 0);
+        const refundedQty = Number(item.refunded_quantity || 0);
+        const netQty = soldQty - refundedQty;
+        return total + ((unitPrice - cost) * netQty);
       }, 0);
       
       // Fetch line items for each cart
@@ -100,7 +103,7 @@ export default function Overview() {
         categories: categoriesRes.count || 0,
         customers: customersRes.count || 0,
         salesToday: todayCarts.length,
-        revenueToday: todayCarts.reduce((s, c) => s + Number(c.total), 0),
+        revenueToday: todayCarts.reduce((s, c) => s + Number(c.net_amount ?? c.total), 0),
         profitToday,
       });
       setLowStock(lowStockRes.data || []);
@@ -212,7 +215,7 @@ export default function Overview() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">{formatCurrency(Number(cart.total))}</span>
+                        <span className="text-sm font-semibold">{formatCurrency(Number(cart.net_amount ?? cart.total))}</span>
                         <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </div>
@@ -334,20 +337,24 @@ export default function Overview() {
             supabase.from("products").select("id", { count: "exact", head: true }),
             supabase.from("categories").select("id", { count: "exact", head: true }),
             supabase.from("customers").select("id", { count: "exact", head: true }),
-            supabase.from("cart_summary").select("total").gte("created_at", start).lte("created_at", end).eq("status", "completed").neq("refund_status", "fully_refunded"),
+            supabase.from("cart_summary").select("total, net_amount").gte("created_at", start).lte("created_at", end).eq("status", "completed").neq("refund_status", "fully_refunded"),
             supabase.from("cart_summary").select("*").eq("status", "completed").gte("created_at", start).lte("created_at", end).neq("refund_status", "fully_refunded").order("created_at", { ascending: false }).limit(10),
             supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
-            supabase.from("sold_products").select("quantity, unit_price, products(cost)").gte("created_at", start).lte("created_at", end),
-          ]).then(async ([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, soldProductsRes]) => {
+            supabase.from("cart_line_items").select("sold_quantity, refunded_quantity, unit_price, product_cost, carts!inner(created_at)").gte("carts.created_at", start).lte("carts.created_at", end),
+          ]).then(async ([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, lineItemsRes]) => {
             const todayCarts = todayCartsRes.data || [];
-            const soldProducts = soldProductsRes.data || [];
+            const lineItems = lineItemsRes.data || [];
             const cartsData = recentRes.data || [];
             
-            const profitToday = soldProducts.reduce((total, sp) => {
-              const cost = Number(sp.products?.cost || 0);
-              const unitPrice = Number(sp.unit_price || 0);
-              const quantity = Number(sp.quantity || 0);
-              return total + ((unitPrice - cost) * quantity);
+            // Calculate profit: (unit_price - cost) * (sold_quantity - refunded_quantity)
+            // This properly excludes refunded items from profit calculation
+            const profitToday = lineItems.reduce((total, item) => {
+              const cost = Number(item.product_cost || 0);
+              const unitPrice = Number(item.unit_price || 0);
+              const soldQty = Number(item.sold_quantity || 0);
+              const refundedQty = Number(item.refunded_quantity || 0);
+              const netQty = soldQty - refundedQty;
+              return total + ((unitPrice - cost) * netQty);
             }, 0);
 
             // Fetch line items for each cart
@@ -387,7 +394,7 @@ export default function Overview() {
               categories: categoriesRes.count || 0,
               customers: customersRes.count || 0,
               salesToday: todayCarts.length,
-              revenueToday: todayCarts.reduce((s, c) => s + Number(c.total), 0),
+              revenueToday: todayCarts.reduce((s, c) => s + Number(c.net_amount ?? c.total), 0),
               profitToday,
             });
             setLowStock(lowStockRes.data || []);

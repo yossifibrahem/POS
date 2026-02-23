@@ -454,6 +454,7 @@ export type Database = {
           net_line_total: number | null
           product_id: string | null
           product_name: string | null
+          product_cost: number | null
           product_attributes: Json | null
         }
         Insert: {
@@ -466,6 +467,7 @@ export type Database = {
           net_line_total?: number | null
           product_id?: string | null
           product_name?: string | null
+          product_cost?: number | null
           product_attributes?: Json | null
         }
         Update: {
@@ -478,6 +480,7 @@ export type Database = {
           net_line_total?: number | null
           product_id?: string | null
           product_name?: string | null
+          product_cost?: number | null
           product_attributes?: Json | null
         }
         Relationships: []
