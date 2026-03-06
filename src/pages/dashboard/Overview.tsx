@@ -31,7 +31,7 @@ interface Product {
 
 export default function Overview() {
   const navigate = useNavigate();
-  const { adminLevel } = useAuth();
+  const { adminLevel, adminLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ products: 0, categories: 0, customers: 0, salesToday: 0, revenueToday: 0, profitToday: 0 });
   const [recentCarts, setRecentCarts] = useState<Cart[]>([]);
@@ -40,6 +40,8 @@ export default function Overview() {
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
+    if (adminLoading) return;
+
     const { start, end } = getLocalDateRange();
 
     Promise.all([
@@ -109,7 +111,7 @@ export default function Overview() {
       setLowStock(lowStockRes.data || []);
       setLoading(false);
     });
-  }, []);
+  }, [adminLoading, adminLevel]);
 
 
   const allStatCards = [
@@ -332,6 +334,7 @@ export default function Overview() {
         onOpenChange={setModalOpen}
         onRefund={() => {
           // Refresh the data after refund
+          if (adminLoading) return;
           const { start, end } = getLocalDateRange();
           Promise.all([
             supabase.from("products").select("id", { count: "exact", head: true }),
