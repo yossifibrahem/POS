@@ -126,7 +126,7 @@ export default function NewSale() {
     setProcessing(true);
 
     try {
-      // Create cart as 'pending' first (triggers won't deduct stock yet)
+      // Create cart — stock is deducted when status transitions to 'completed'
       const customerIdForSale = customerId === "walk-in" ? null : customerId;
       const { data: cartData, error: cartError } = await supabase.from("carts").insert({
         customer_id: customerIdForSale,
@@ -156,15 +156,19 @@ export default function NewSale() {
         .eq("id", cartData.id);
 
       if (completeError) {
-        // If there's a stock error, cancel the pending cart
+        // Cancel the pending cart to avoid orphaned records
         await supabase.from("carts").update({ status: "cancelled" }).eq("id", cartData.id);
-        throw new Error("Insufficient stock for one or more items.");
+        throw new Error(
+          completeError.message?.includes("stock")
+            ? "Insufficient stock for one or more items."
+            : "Failed to complete sale. Please try again."
+        );
       }
 
       // Fetch updated cart total from database (calculated by trigger)
       const { data: updatedCart } = await supabase.from("carts").select("total").eq("id", cartData.id).single();
 
-      toast.success(`Sale processed! Total: $${Number(updatedCart?.total || 0).toFixed(2)}`);
+      toast.success(`Sale completed! Total: ${formatCurrency(Number(updatedCart?.total || 0))}`);
       setCart([]);
       setCustomerId("walk-in");
       setNotes("");

@@ -6,6 +6,8 @@ import { CartDetailModal } from "@/components/CartDetailModal";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +37,7 @@ interface Cart {
   refunded_amount: number | null;
   net_amount: number | null;
   refund_status: string | null;
+  processed_by_level?: string | null;
   line_items?: { product_name: string | null; sold_quantity: number | null; refunded_quantity: number | null }[];
 }
 
@@ -51,6 +54,8 @@ export default function SalesHistory() {
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterAdmin, setFilterAdmin] = useState<string>("all");
+  const [adminList, setAdminList] = useState<{ name: string; level: string }[]>([]);
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
@@ -105,6 +110,31 @@ export default function SalesHistory() {
   }, [dateFrom, dateTo, hideRefunded]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Fetch admin list for filter dropdown (med/high only)
+  useEffect(() => {
+    const fetchAdmins = async () => {
+      if (adminLevel === 'low') return;
+      const { data: adminsData } = await supabase
+        .from("admin_profiles")
+        .select("full_name, level")
+        .order("full_name");
+      setAdminList((adminsData || []).map((a: { full_name: string | null; level: 'high' | 'med' | 'low' }) => ({
+        name: a.full_name || "",
+        level: a.level || 'low'
+      })));
+    };
+    fetchAdmins();
+  }, [adminLevel]);
+
+  // Reset admin filter when toggling hide refunded
+  useEffect(() => { setFilterAdmin("all"); }, [hideRefunded]);
+
+  const filteredCarts = filterCartsByProduct(carts, search).filter((c) => {
+    if (filterAdmin === "all") return true;
+    if (filterAdmin === "__low__") return c.processed_by_level === "low";
+    return c.processed_by_name === filterAdmin;
+  });
 
   const handleRefundCart = async () => {
     if (!deleteCartId) return;
@@ -209,14 +239,33 @@ export default function SalesHistory() {
           <Input type="date" placeholder="Start date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           <Input type="date" placeholder="End date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
+        {adminLevel !== 'low' && (
+          <div className="w-full sm:w-48">
+            <Select value={filterAdmin} onValueChange={setFilterAdmin}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="All admins" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All admins</SelectItem>
+                <SelectItem value="__low__">Low-level only</SelectItem>
+                {adminList.map((a) => (
+                  <SelectItem key={a.name} value={a.name}>
+                    {a.name}
+                    {a.level === 'low' && ' (Low)'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="pt-4 pb-6">
         <div className="grid gap-4 grid-cols-1">
           {loading ? (
           <LoadingGrid count={4} columns={1} />
-        ) : filterCartsByProduct(carts, search).length > 0 ? (
-          filterCartsByProduct(carts, search).map((c) => (
+        ) : filteredCarts.length > 0 ? (
+          filteredCarts.map((c) => (
             <div 
               key={c.id} 
               className="group p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
@@ -229,6 +278,11 @@ export default function SalesHistory() {
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {c.customer_name || "Walk-in Customer"} • Processed by: {c.processed_by_name || "Unknown"}
+                    {c.processed_by_level === 'low' && (
+                      <Badge variant="outline" className="ml-1 text-xs py-0 px-1 text-amber-600 border-amber-300">
+                        Low
+                      </Badge>
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

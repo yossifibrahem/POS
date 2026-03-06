@@ -374,6 +374,33 @@ export type Database = {
       }
     }
     Views: {
+      admin_profiles: {
+        Row: {
+          id: string
+          level: 'high' | 'med' | 'low'
+          admin_since: string | null
+          full_name: string | null
+          email: string | null
+          phone: string | null
+        }
+        Insert: {
+          id?: string
+          level?: 'high' | 'med' | 'low'
+          admin_since?: string | null
+          full_name?: string | null
+          email?: string | null
+          phone?: string | null
+        }
+        Update: {
+          id?: string
+          level?: 'high' | 'med' | 'low'
+          admin_since?: string | null
+          full_name?: string | null
+          email?: string | null
+          phone?: string | null
+        }
+        Relationships: []
+      }
       cart_refund_status: {
         Row: {
           cart_id: string | null
