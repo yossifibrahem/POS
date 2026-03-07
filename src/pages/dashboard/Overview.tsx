@@ -311,7 +311,7 @@ export default function Overview() {
           </div>
           
           {/* Date Navigation */}
-          <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1">
+          <div className="flex justify-between items-center gap-2 bg-muted/50 rounded-lg p-1">
             <Button
               variant="ghost"
               size="icon"
