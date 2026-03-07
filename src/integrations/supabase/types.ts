@@ -433,9 +433,11 @@ export type Database = {
           notes: string | null
           created_at: string | null
           updated_at: string | null
+          processed_by: string | null
           customer_name: string | null
           customer_email: string | null
           processed_by_name: string | null
+          processed_by_level: string | null
           refunded_amount: number | null
           net_amount: number | null
           refund_status: string | null
@@ -447,9 +449,11 @@ export type Database = {
           notes?: string | null
           created_at?: string | null
           updated_at?: string | null
+          processed_by?: string | null
           customer_name?: string | null
           customer_email?: string | null
           processed_by_name?: string | null
+          processed_by_level?: string | null
           refunded_amount?: number | null
           net_amount?: number | null
           refund_status?: string | null
@@ -461,9 +465,11 @@ export type Database = {
           notes?: string | null
           created_at?: string | null
           updated_at?: string | null
+          processed_by?: string | null
           customer_name?: string | null
           customer_email?: string | null
           processed_by_name?: string | null
+          processed_by_level?: string | null
           refunded_amount?: number | null
           net_amount?: number | null
           refund_status?: string | null
