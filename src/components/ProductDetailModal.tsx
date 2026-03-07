@@ -103,7 +103,7 @@ export function ProductDetailModal({
 
   const stockBadge = () => {
     if (product.stock === 0) return <Badge variant="destructive">Out of Stock</Badge>;
-    if (product.stock < 10) return <Badge variant="secondary">Low Stock</Badge>;
+    if (product.stock <= 2) return <Badge variant="secondary">Low Stock</Badge>;
     return <Badge variant="outline" className="text-green-600 border-green-600">In Stock</Badge>;
   };
 
