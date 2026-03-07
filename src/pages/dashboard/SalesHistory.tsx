@@ -209,17 +209,8 @@ export default function SalesHistory() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-2">
-        <div>
-          <h1 className="text-2xl font-bold">Sales History</h1>
-          {adminLevel === 'low' && (
-            <p className="text-sm text-muted-foreground">Showing your sales only</p>
-          )}
-        </div>
-      </div>
-
       {/* Search bar row */}
-      <div className="sticky top-[96px] z-10 bg-background py-2">
+      <div className="sticky top-[48px] z-10 bg-background py-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input 
@@ -232,7 +223,7 @@ export default function SalesHistory() {
       </div>
 
       {/* Filters row - grid with one row */}
-      <div className="sticky top-[144px] z-10 bg-background py-2">
+      <div className="sticky top-[96px] z-10 bg-background py-2">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Input type="date" placeholder="Start date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           <Input type="date" placeholder="End date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />

@@ -128,11 +128,6 @@ export default function Overview() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <div className="sticky top-[48px] z-10 bg-background py-2">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Overview of your store performance</p>
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
         {loading ? (
           <>

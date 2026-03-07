@@ -251,8 +251,8 @@ export default function Products() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="sticky top-[48px] z-10 flex items-center justify-between bg-background py-2">
-        <h1 className="text-2xl font-bold">Products</h1>
+      {/* Action bar row */}
+      <div className="sticky top-[48px] z-10 flex items-center justify-end bg-background py-2">
         <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Add Product</Button>
       </div>
 

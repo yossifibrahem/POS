@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useSignOut } from "@/hooks/useSignOut";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut, User } from "lucide-react";
 import { canAccessDashboard } from "@/lib/permissions";
+import { useEffect, useState } from "react";
 
 const allNavItems = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
@@ -31,12 +32,28 @@ const allNavItems = [
 export default function DashboardLayout() {
   const { adminLevel, adminProfile } = useAuth();
   const handleSignOut = useSignOut();
+  const location = useLocation();
+  const [pageTitle, setPageTitle] = useState("Overview");
 
   // Filter nav items based on admin level
   // Low admins only see New Sale and Sales History
   const navItems = canAccessDashboard(adminLevel) 
     ? allNavItems 
     : allNavItems.filter(item => item.title === "New Sale" || item.title === "Sales History");
+
+  // Update page title based on current route
+  useEffect(() => {
+    const path = location.pathname;
+    const currentItem = allNavItems.find(item => {
+      if (item.url === "/dashboard") {
+        return path === "/dashboard";
+      }
+      return path.startsWith(item.url);
+    });
+    if (currentItem) {
+      setPageTitle(currentItem.title);
+    }
+  }, [location.pathname]);
 
   return (
     <SidebarProvider>
@@ -84,8 +101,11 @@ export default function DashboardLayout() {
           </div>
         </Sidebar>
 <SidebarInset className="flex flex-col min-h-dvh">
-  <header className="sticky top-0 z-50 flex h-12 items-center border-b bg-background px-4 shrink-0">
-    <SidebarTrigger />
+  <header className="sticky top-0 z-50 flex h-12 items-center justify-between border-b bg-background px-4 shrink-0">
+    <div className="flex items-center gap-2">
+      <SidebarTrigger />
+      <h1 className="text-lg font-semibold">{pageTitle}</h1>
+    </div>
   </header>
   <div className="flex-1">
     <Outlet />
