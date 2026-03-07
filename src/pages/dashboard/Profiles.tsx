@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { canManageAdmins } from "@/lib/permissions";
 import type { AdminLevel } from "@/lib/permissions";
+import { useProfileRealtime } from "@/hooks/useRealtimeSubscription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,6 +94,11 @@ export default function Profiles() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Subscribe to real-time updates for profile, admin, and customer changes
+  useProfileRealtime({
+    onChange: load,
+  });
 
   const openEdit = (p: Profile) => {
     setEditing(p);

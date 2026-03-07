@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { canSeeCostAndProfit } from "@/lib/permissions";
+import { useInventoryRealtime, useCustomerRealtime } from "@/hooks/useRealtimeSubscription";
 import type { Json } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,34 @@ export default function NewSale() {
       setLoading(false);
     });
   }, [user]);
+
+  // Refresh functions for realtime updates
+  const refreshProducts = useCallback(async () => {
+    const { data } = await supabase.from("products").select("*, categories(name)").order("name");
+    setProducts((data || []) as Product[]);
+  }, []);
+
+  const refreshCategories = useCallback(async () => {
+    const { data } = await supabase.from("categories").select("*");
+    setCategories(data || []);
+  }, []);
+
+  const refreshCustomers = useCallback(async () => {
+    const { data } = await supabase.from("customers").select("*, profiles(full_name, email)").order("profiles(full_name)");
+    setCustomers(data || []);
+  }, []);
+
+  // Realtime subscriptions - keep data fresh
+  useInventoryRealtime({
+    onChange: () => {
+      refreshProducts();
+      refreshCategories();
+    },
+  });
+
+  useCustomerRealtime({
+    onChange: refreshCustomers,
+  });
 
 
   const addToCart = (product: Product) => {
@@ -179,10 +208,7 @@ export default function NewSale() {
       toast.error(errorMessage);
     } finally {
       setProcessing(false);
-      
-      // Reload products for updated stock
-      const { data } = await supabase.from("products").select("*, categories(name)").order("name");
-      setProducts(data || []);
+      // Products will be updated via realtime subscription
     }
   };
 

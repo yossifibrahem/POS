@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { canSeeCostAndProfit } from "@/lib/permissions";
+import { useCartRealtime, useInventoryRealtime } from "@/hooks/useRealtimeSubscription";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -228,6 +229,33 @@ export default function Overview() {
     selected.setHours(0, 0, 0, 0);
     return selected.getTime() < today.getTime();
   };
+
+  // Check if selected date is today
+  const isToday = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    return selected.getTime() === today.getTime();
+  }, [selectedDate]);
+
+  // Real-time cart updates (sales, revenue, profit, transactions)
+  // Only active when viewing today
+  useCartRealtime({
+    onChange: () => {
+      if (isToday) {
+        fetchDailyData(selectedDate);
+      }
+    },
+  });
+
+  // Real-time inventory updates (products, categories, out of stock)
+  // Always active as these can change at any time
+  useInventoryRealtime({
+    onChange: () => {
+      fetchStaticData();
+    },
+  });
 
   const refreshData = () => {
     fetchDailyData(selectedDate);

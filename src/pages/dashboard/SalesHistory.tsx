@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { canManageRefunds } from "@/lib/permissions";
+import { useCartRealtime } from "@/hooks/useRealtimeSubscription";
 import { CartDetailModal } from "@/components/CartDetailModal";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -110,6 +111,11 @@ export default function SalesHistory() {
   }, [dateFrom, dateTo, hideRefunded]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Subscribe to real-time updates for cart and refund changes
+  useCartRealtime({
+    onChange: load,
+  });
 
   // Fetch admin list for filter dropdown (med/high only)
   useEffect(() => {

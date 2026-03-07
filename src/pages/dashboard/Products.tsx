@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useInventoryRealtime } from "@/hooks/useRealtimeSubscription";
 import { canSeeCostAndProfit } from "@/lib/permissions";
 import { parseSortFromURL } from "@/lib/urlSort";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,13 @@ export default function Products() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Subscribe to real-time updates for products and categories
+  useInventoryRealtime({
+    onChange: () => {
+      load();
+    },
+  });
 
 
   const openCreate = () => {
