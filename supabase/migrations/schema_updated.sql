@@ -1,6 +1,12 @@
 -- =============================================================================
--- COMPLETE DATABASE SCHEMA (v2)
+-- COMPLETE DATABASE SCHEMA (v3)
 -- Includes: admin level hierarchy (high / med / low)
+--
+-- v3 changes vs v2:
+--   • carts_update RLS policy extended: low admins can now update carts they
+--     personally created (processed_by = auth.uid()), enabling the
+--     pending → completed transition that auto-completes their own sales.
+--     Med/high admins retain full update access to all carts.
 --
 -- Refund model: immutable refund ledger (refunds + refund_items)
 -- Identity model: shared `profiles` table — customers and admins both reference
@@ -752,7 +758,8 @@ CREATE POLICY "admins_delete"
 -- Carts:
 --   SELECT — customers see own carts; med/high see all; low see only their own
 --   INSERT — all admin levels (low admins must be able to create sales)
---   UPDATE — med/high only (status changes, cart editing)
+--   UPDATE — med/high can update any cart; low admins can update their own
+--            carts only (required to transition pending → completed on sale)
 --   DELETE — med/high only
 -- ---------------------------------------------------------------------------
 CREATE POLICY "carts_select"
@@ -772,8 +779,14 @@ CREATE POLICY "carts_insert"
 CREATE POLICY "carts_update"
   ON public.carts FOR UPDATE
   TO authenticated
-  USING  (public.is_admin_med_or_above(auth.uid()))
-  WITH CHECK (public.is_admin_med_or_above(auth.uid()));
+  USING (
+    public.is_admin_med_or_above(auth.uid())
+    OR (public.is_admin(auth.uid()) AND processed_by = auth.uid())
+  )
+  WITH CHECK (
+    public.is_admin_med_or_above(auth.uid())
+    OR (public.is_admin(auth.uid()) AND processed_by = auth.uid())
+  );
 
 CREATE POLICY "carts_delete"
   ON public.carts FOR DELETE
