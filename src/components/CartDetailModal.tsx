@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/formatters";
@@ -43,6 +44,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
   const [items, setItems] = useState<SoldItemRow[]>([]);
   const [returningId, setReturningId] = useState<string | null>(null);
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
+  const [pendingRefundItem, setPendingRefundItem] = useState<SoldItemRow | null>(null);
 
   const loadData = useCallback(async () => {
     if (!cartId) return;
@@ -73,7 +75,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
   }, [cartId]);
 
   useEffect(() => {
-    if (!open || !cartId) { setCart(null); setItems([]); setReturnQty({}); }
+    if (!open || !cartId) { setCart(null); setItems([]); setReturnQty({}); setPendingRefundItem(null); }
   }, [open, cartId]);
 
   useEffect(() => { if (open && cartId) loadData(); }, [open, cartId, loadData]);
@@ -231,7 +233,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
                                 {Array.from({ length: m.activeQty }, (_, i) => i + 1).map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
                               </SelectContent>
                             </Select>
-                            <Button variant="ghost" size="sm" className="gap-1 h-8 text-red-500 hover:text-red-600" onClick={() => handlePartialReturn(item)} disabled={returningId === item.sold_product_id}>
+                            <Button variant="ghost" size="sm" className="gap-1 h-8 text-red-500 hover:text-red-600" onClick={() => setPendingRefundItem(item)} disabled={returningId === item.sold_product_id}>
                               {returningId === item.sold_product_id ? "..." : <><RotateCcw className="h-3 w-3" /> Return</>}
                             </Button>
                           </div>
@@ -259,6 +261,24 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
           </div>
         </ScrollArea>
       </DialogContent>
+      
+      {/* Refund Confirmation Dialog */}
+      {pendingRefundItem && (
+        <AlertDialog open={!!pendingRefundItem} onOpenChange={(open) => !open && setPendingRefundItem(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Refund</AlertDialogTitle>
+              <AlertDialogDescription>
+                Refund {returnQty[pendingRefundItem.sold_product_id] || 1} unit(s) of {pendingRefundItem.product_name} for {formatCurrency((returnQty[pendingRefundItem.sold_product_id] || 1) * Number(pendingRefundItem.unit_price))}?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPendingRefundItem(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { if (pendingRefundItem) handlePartialReturn(pendingRefundItem); setPendingRefundItem(null); }} className="bg-red-500 hover:bg-red-600 text-white">Confirm</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </Dialog>
   );
 }
