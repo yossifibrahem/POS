@@ -176,17 +176,13 @@ export default function Categories() {
 
   return (
     <div className="p-4 md:p-6">
-      {/* Action bar row */}
-      <div className="sticky top-[48px] z-10 flex items-center justify-end bg-background py-2">
-        <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Add Category</Button>
-      </div>
-
-      {/* Search bar row */}
-      <div className="sticky top-[96px] z-10 bg-background py-2">
-        <div className="relative">
+      {/* Search and Action bar row */}
+      <div className="sticky top-[48px] z-10 flex items-center gap-2 bg-background py-2">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search categories..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <Button onClick={openCreate} size="icon"><Plus className="h-5 w-5" /></Button>
       </div>
 
       <div className="pt-4 pb-6">

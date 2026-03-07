@@ -201,56 +201,54 @@ export default function NewSale() {
 
   return (
     <div className="p-4 md:p-6">
-      {/* Action bar row */}
-      <div className="sticky top-[48px] z-10 flex items-center justify-end bg-background py-2">
+      {/* Search and Cart row */}
+      <div className="sticky top-[48px] z-10 flex items-center gap-2 bg-background py-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search products..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
         <Button
           variant="outline"
-          className="relative gap-2"
+          className="relative"
+          size="icon"
           onClick={() => setCartOpen(true)}
         >
-          <ShoppingCart className="h-4 w-4" />
-          Cart
+          <ShoppingCart className="h-5 w-5" />
           {cartItemCount > 0 && (
-            <Badge variant="default" className="ml-1 h-5 min-w-5 rounded-full px-1.5 text-xs">
+            <Badge variant="default" className="absolute -top-2 -right-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
               {cartItemCount}
             </Badge>
           )}
         </Button>
       </div>
 
-      {/* Product Picker - full width */}
+      {/* Filters row */}
       <div className="sticky top-[96px] z-10 bg-background py-2">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search products..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
-          <div className="flex gap-2">
-            <Select value={filterCat} onValueChange={setFilterCat}>
-              <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Category" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select 
-              value={`${sort.field}-${sort.direction}`} 
-              onValueChange={(value) => {
-                const [field, direction] = value.split("-") as [SortOptions["field"], SortOptions["direction"]];
-                setSort({ field, direction });
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Sort by..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name-asc">Name (A-Z)</SelectItem>
-                <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-                <SelectItem value="price-asc">Price (Low-High)</SelectItem>
-                <SelectItem value="price-desc">Price (High-Low)</SelectItem>
-                <SelectItem value="stock-asc">Stock (Low-High)</SelectItem>
-                <SelectItem value="stock-desc">Stock (High-Low)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Select value={filterCat} onValueChange={setFilterCat}>
+            <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select 
+            value={`${sort.field}-${sort.direction}`} 
+            onValueChange={(value) => {
+              const [field, direction] = value.split("-") as [SortOptions["field"], SortOptions["direction"]];
+              setSort({ field, direction });
+            }}
+          >
+            <SelectTrigger><SelectValue placeholder="Sort by..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+              <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+              <SelectItem value="price-asc">Price (Low-High)</SelectItem>
+              <SelectItem value="price-desc">Price (High-Low)</SelectItem>
+              <SelectItem value="stock-asc">Stock (Low-High)</SelectItem>
+              <SelectItem value="stock-desc">Stock (High-Low)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
