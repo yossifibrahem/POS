@@ -32,9 +32,7 @@ const App = () => (
             <Route path="/dashboard" element={
               <ProtectedRoute adminOnly><DashboardLayout /></ProtectedRoute>
             }>
-              <Route index element={
-                <ProtectedRoute requiredLevel="med"><Overview /></ProtectedRoute>
-              } />
+              <Route index element={<Overview />} />
               <Route path="products" element={
                 <ProtectedRoute requiredLevel="med"><Products /></ProtectedRoute>
               } />

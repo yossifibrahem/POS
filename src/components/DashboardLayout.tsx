@@ -18,7 +18,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut, User } from "lucide-react";
-import { canAccessDashboard } from "@/lib/permissions";
+import { canAccessDashboard, canAccessOwnOverview } from "@/lib/permissions";
 import { useEffect, useRef, useState, useCallback } from "react";
 
 const SWIPE_THRESHOLD = 50;    // min horizontal distance (px) to trigger
@@ -47,7 +47,9 @@ function DashboardContent() {
 
   const navItems = canAccessDashboard(adminLevel)
     ? allNavItems
-    : allNavItems.filter(item => item.title === "New Sale" || item.title === "Sales History");
+    : canAccessOwnOverview(adminLevel)
+      ? allNavItems.filter(item => item.title === "Overview" || item.title === "New Sale" || item.title === "Sales History")
+      : allNavItems.filter(item => item.title === "New Sale" || item.title === "Sales History");
 
   useEffect(() => {
     const path = location.pathname;

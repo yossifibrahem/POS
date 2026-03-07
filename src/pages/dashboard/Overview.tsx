@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Package, Users, ShoppingCart, DollarSign, XCircle,TrendingUp,ChevronLeft,ChevronRight,Calendar,Tags} from "lucide-react";
-import { formatCurrency, formatDateTime, formatRelativeTime } from "@/lib/formatters";
+import { formatCurrency, formatRelativeTime } from "@/lib/formatters";
 import { StatCardSkeleton } from "@/components/LoadingGrid";
 import { CartDetailModal } from "@/components/CartDetailModal";
 
@@ -77,7 +77,8 @@ function getDateRange(date: Date): { start: string; end: string } {
 
 export default function Overview() {
   const navigate = useNavigate();
-  const { adminLevel } = useAuth();
+  const { adminLevel, user } = useAuth();
+  const isLowLevelAdmin = adminLevel === 'low';
   const [loadingDaily, setLoadingDaily] = useState(true);
   const [loadingStatic, setLoadingStatic] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -92,29 +93,48 @@ export default function Overview() {
     setLoadingDaily(true);
     const { start, end } = getDateRange(date);
 
+    // Build query for carts - filter by processed_by for low-level admin
+    let cartsQuery = supabase
+      .from("cart_summary")
+      .select("total, net_amount")
+      .gte("created_at", start)
+      .lte("created_at", end)
+      .eq("status", "completed")
+      .neq("refund_status", "fully_refunded");
+    
+    if (isLowLevelAdmin && user?.id) {
+      cartsQuery = cartsQuery.eq("processed_by", user.id);
+    }
+
+    let lineItemsQuery = supabase
+      .from("cart_line_items")
+      .select("sold_quantity, refunded_quantity, unit_price, product_cost, carts!inner(created_at, processed_by)")
+      .gte("carts.created_at", start)
+      .lte("carts.created_at", end);
+    
+    if (isLowLevelAdmin && user?.id) {
+      lineItemsQuery = lineItemsQuery.eq("carts.processed_by", user.id);
+    }
+
+    let recentQuery = supabase
+      .from("cart_summary")
+      .select("*")
+      .eq("status", "completed")
+      .gte("created_at", start)
+      .lte("created_at", end)
+      .neq("refund_status", "fully_refunded")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    
+    if (isLowLevelAdmin && user?.id) {
+      recentQuery = recentQuery.eq("processed_by", user.id);
+    }
+
     try {
       const [cartsRes, lineItemsRes, recentRes] = await Promise.all([
-        supabase
-          .from("cart_summary")
-          .select("total, net_amount")
-          .gte("created_at", start)
-          .lte("created_at", end)
-          .eq("status", "completed")
-          .neq("refund_status", "fully_refunded"),
-        supabase
-          .from("cart_line_items")
-          .select("sold_quantity, refunded_quantity, unit_price, product_cost, carts!inner(created_at)")
-          .gte("carts.created_at", start)
-          .lte("carts.created_at", end),
-        supabase
-          .from("cart_summary")
-          .select("*")
-          .eq("status", "completed")
-          .gte("created_at", start)
-          .lte("created_at", end)
-          .neq("refund_status", "fully_refunded")
-          .order("created_at", { ascending: false })
-          .limit(10),
+        cartsQuery,
+        lineItemsQuery,
+        recentQuery,
       ]);
 
       const todayCarts = cartsRes.data || [];
@@ -169,7 +189,7 @@ export default function Overview() {
     } finally {
       setLoadingDaily(false);
     }
-  }, []);
+  }, [isLowLevelAdmin, user]);
 
   const fetchStaticData = useCallback(async () => {
     setLoadingStatic(true);
@@ -200,8 +220,11 @@ export default function Overview() {
   }, [selectedDate, fetchDailyData]);
 
   useEffect(() => {
-    fetchStaticData();
-  }, [fetchStaticData]);
+    // Only fetch static data for med/high level admins (not low-level)
+    if (!isLowLevelAdmin) {
+      fetchStaticData();
+    }
+  }, [fetchStaticData, isLowLevelAdmin]);
 
   const handlePreviousDay = () => {
     const prev = new Date(selectedDate);
@@ -253,10 +276,12 @@ export default function Overview() {
   });
 
   // Real-time inventory updates (products, categories, out of stock)
-  // Always active as these can change at any time
+  // Only active for med/high level admins as they manage inventory
   const handleInventoryChange = useCallback(() => {
-    fetchStaticData();
-  }, [fetchStaticData]);
+    if (!isLowLevelAdmin) {
+      fetchStaticData();
+    }
+  }, [fetchStaticData, isLowLevelAdmin]);
 
   useInventoryRealtime({
     onChange: handleInventoryChange,
@@ -264,7 +289,9 @@ export default function Overview() {
 
   const refreshData = () => {
     fetchDailyData(selectedDate);
-    fetchStaticData();
+    if (!isLowLevelAdmin) {
+      fetchStaticData();
+    }
   };
 
   const dailyStatCards = [
@@ -286,7 +313,8 @@ export default function Overview() {
 
   return (
     <div className="p-4 md:p-6 space-y-8">
-      {/* Inventory Overview Section */}
+      {/* Inventory Overview Section - Only show for med/high level admins */}
+      {!isLowLevelAdmin && (
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <div className="p-2 bg-muted rounded-lg">
@@ -329,6 +357,7 @@ export default function Overview() {
           )}
         </div>
       </section>
+      )}
 
       {/* Daily Updated Section */}
       <section className="space-y-4">
