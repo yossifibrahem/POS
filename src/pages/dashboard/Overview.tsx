@@ -193,8 +193,8 @@ export default function Overview() {
                 <p className="text-xs text-muted-foreground mt-1">New sales will appear here</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {recentCarts.slice(0, 3).map((cart) => (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                {recentCarts.map((cart) => (
                   <div 
                     key={cart.id} 
                     className="group p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
@@ -289,8 +289,8 @@ export default function Overview() {
                 <p className="text-xs text-muted-foreground mt-1">No action required</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {lowStock.slice(0, 5).map((p) => (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                {lowStock.map((p) => (
                   <div 
                     key={p.id} 
                     className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
@@ -307,14 +307,6 @@ export default function Overview() {
                     </Badge>
                   </div>
                 ))}
-                {lowStock.length > 5 && (
-                  <div 
-                    className="flex items-center justify-center p-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                    onClick={() => navigate('/dashboard/products?sort=stock-asc')}
-                  >
-                    View all {lowStock.length} low stock products →
-                  </div>
-                )}
               </div>
             )}
           </CardContent>
