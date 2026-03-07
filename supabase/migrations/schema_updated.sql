@@ -1,6 +1,12 @@
 -- =============================================================================
--- COMPLETE DATABASE SCHEMA (v3)
+-- COMPLETE DATABASE SCHEMA (v4)
 -- Includes: admin level hierarchy (high / med / low)
+--
+-- v4 changes vs v3:
+--   • cart_summary view: added c.processed_by (UUID) column so the UI can
+--     reference the admin's UUID directly without a separate query.
+--     Useful for ownership checks in low-admin flows and joining on the
+--     client side without re-fetching the carts table.
 --
 -- v3 changes vs v2:
 --   • carts_update RLS policy extended: low admins can now update carts they
@@ -502,13 +508,15 @@ SELECT c.id                                                           AS cart_id
 --   Includes admin_level so the UI can decide whether to show profit columns
 --   without a separate query.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.cart_summary AS
+DROP VIEW IF EXISTS public.cart_summary;
+CREATE VIEW public.cart_summary AS
 SELECT c.id,
        c.status,
        c.total,
        c.notes,
        c.created_at,
        c.updated_at,
+       c.processed_by,
        cp.full_name  AS customer_name,
        cp.email      AS customer_email,
        ap.full_name  AS processed_by_name,

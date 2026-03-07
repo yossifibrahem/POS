@@ -1,50 +1,34 @@
 -- =============================================================================
--- MIGRATION: Auto-complete sales for all admin levels
--- Description:
---   Previously, low-level admins could INSERT a cart (as 'pending') but were
---   blocked by RLS from updating it to 'completed'. This caused low-admin
---   sales to stay stuck in 'pending' indefinitely.
+-- MIGRATION: Add processed_by to cart_summary view
 --
---   Fix: extend the carts_update policy so any admin can update a cart they
---   personally created (processed_by = auth.uid()). Med/high admins retain
---   their existing ability to update any cart.
+-- Change: Exposes c.processed_by (UUID) directly in the cart_summary view,
+--         alongside the already-present processed_by_name and processed_by_level.
+--         This allows the UI to reference the admin's UUID without a separate
+--         query (e.g. for ownership checks on low-admin flows).
 --
---   The stock-deduction trigger (pending → completed) is unchanged — it still
---   fires correctly for all admin levels once this policy is in place.
---
---   Additionally, add processed_by_level to the carts_select policy so the
---   frontend can display an admin-level filter in SalesHistory without a
---   separate query.
---
--- Safe to run:   Yes — only drops and recreates policies; no data mutation.
--- Rollback:      Re-run original policy definitions from schema_updated.sql.
+-- NOTE: CREATE OR REPLACE cannot insert a column mid-list, so we DROP first.
 -- =============================================================================
 
+DROP VIEW IF EXISTS public.cart_summary;
 
--- ---------------------------------------------------------------------------
--- 1. carts UPDATE policy
---    Before: med/high only
---    After:  med/high OR any admin updating their own cart
--- ---------------------------------------------------------------------------
-DROP POLICY IF EXISTS "carts_update" ON public.carts;
-
-CREATE POLICY "carts_update"
-  ON public.carts FOR UPDATE
-  TO authenticated
-  USING (
-    public.is_admin_med_or_above(auth.uid())
-    OR (public.is_admin(auth.uid()) AND processed_by = auth.uid())
-  )
-  WITH CHECK (
-    public.is_admin_med_or_above(auth.uid())
-    OR (public.is_admin(auth.uid()) AND processed_by = auth.uid())
-  );
-
-
--- ---------------------------------------------------------------------------
--- 2. Verify (optional — run manually to confirm)
---    SELECT polname, polcmd
---      FROM pg_policies
---     WHERE tablename = 'carts'
---     ORDER BY polcmd, polname;
--- ---------------------------------------------------------------------------
+CREATE VIEW public.cart_summary AS
+SELECT c.id,
+       c.status,
+       c.total,
+       c.notes,
+       c.created_at,
+       c.updated_at,
+       c.processed_by,
+       cp.full_name  AS customer_name,
+       cp.email      AS customer_email,
+       ap.full_name  AS processed_by_name,
+       a.level       AS processed_by_level,
+       crs.refunded_amount,
+       crs.net_amount,
+       crs.refund_status
+  FROM public.carts              c
+  LEFT JOIN public.customers     cu  ON cu.id  = c.customer_id
+  LEFT JOIN public.profiles      cp  ON cp.id  = cu.id
+  LEFT JOIN public.admins        a   ON a.id   = c.processed_by
+  LEFT JOIN public.profiles      ap  ON ap.id  = a.id
+  LEFT JOIN public.cart_refund_status crs ON crs.cart_id = c.id;
