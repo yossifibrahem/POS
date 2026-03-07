@@ -216,17 +216,11 @@ export default function SalesHistory() {
             <p className="text-sm text-muted-foreground">Showing your sales only</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Hide refunded</span>
-          <Switch
-            checked={hideRefunded}
-            onCheckedChange={setHideRefunded}
-          />
-        </div>
       </div>
 
-      <div className="sticky top-[96px] z-10 flex flex-col sm:flex-row gap-3 bg-background py-2 items-end">
-        <div className="relative flex-1">
+      {/* Search bar row */}
+      <div className="sticky top-[96px] z-10 bg-background py-2">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input 
             placeholder="Search by product, customer, note or admin..." 
@@ -235,14 +229,16 @@ export default function SalesHistory() {
             onChange={(e) => setSearch(e.target.value)} 
           />
         </div>
-        <div className="flex gap-3 items-end">
+      </div>
+
+      {/* Filters row - grid with one row */}
+      <div className="sticky top-[144px] z-10 bg-background py-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Input type="date" placeholder="Start date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           <Input type="date" placeholder="End date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
-        {adminLevel !== 'low' && (
-          <div className="w-full sm:w-48">
+          {adminLevel !== 'low' && (
             <Select value={filterAdmin} onValueChange={setFilterAdmin}>
-              <SelectTrigger className="w-full sm:w-48">
+              <SelectTrigger>
                 <SelectValue placeholder="All admins" />
               </SelectTrigger>
               <SelectContent>
@@ -256,8 +252,15 @@ export default function SalesHistory() {
                 ))}
               </SelectContent>
             </Select>
+          )}
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Hide refunded</span>
+            <Switch
+              checked={hideRefunded}
+              onCheckedChange={setHideRefunded}
+            />
           </div>
-        )}
+        </div>
       </div>
 
       <div className="pt-4 pb-6">

@@ -256,14 +256,19 @@ export default function Products() {
         <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Add Product</Button>
       </div>
 
-      <div className="sticky top-[96px] z-10 flex flex-col sm:flex-row gap-3 bg-background py-2">
-        <div className="relative flex-1">
+      {/* Search bar row */}
+      <div className="sticky top-[96px] z-10 bg-background py-2">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search products..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <div className="flex gap-3">
+      </div>
+
+      {/* Filters row - grid with one row */}
+      <div className="sticky top-[144px] z-10 bg-background py-2">
+        <div className="grid grid-cols-2 gap-3">
           <Select value={filterCat} onValueChange={setFilterCat}>
-            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="All Categories" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
               {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -276,7 +281,7 @@ export default function Products() {
               setSort({ field, direction });
             }}
           >
-            <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Sort by..." /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Sort by..." /></SelectTrigger>
             <SelectContent>
               <SelectItem value="name-asc">Name (A-Z)</SelectItem>
               <SelectItem value="name-desc">Name (Z-A)</SelectItem>
