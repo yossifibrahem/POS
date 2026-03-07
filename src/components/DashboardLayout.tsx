@@ -53,7 +53,9 @@ function DashboardContent() {
 
   useEffect(() => {
     const path = location.pathname;
-    const currentItem = allNavItems.find(item => {
+
+    const sortedItems = [...allNavItems].sort((a, b) => b.url.length - a.url.length);
+    const currentItem = sortedItems.find(item => {
       if (item.url === "/dashboard") return path === "/dashboard";
       return path.startsWith(item.url);
     });
