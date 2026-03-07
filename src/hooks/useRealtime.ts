@@ -1,9 +1,8 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 export type TableName = "products" | "carts" | "sold_products" | "categories" | "customers" | "refunds" | "refund_items" | "profiles" | "admins";
-
 export type ChangeEvent = "INSERT" | "UPDATE" | "DELETE";
 
 export interface RealtimePayload<T = Record<string, unknown>> {
@@ -19,24 +18,6 @@ interface UseRealtimeOptions<T = Record<string, unknown>> {
   enabled?: boolean;
 }
 
-/**
- * Hook to subscribe to Supabase Realtime changes for a specific table.
- * 
- * @param table - The table name to subscribe to
- * @param schema - The database schema (defaults to 'public')
- * @param onChange - Callback when changes occur
- * @param enabled - Whether to enable the subscription
- * 
- * @example
- * useRealtime({
- *   table: 'products',
- *   onChange: (payload) => {
- *     if (payload.eventType === 'UPDATE') {
- *       // Update local products state
- *     }
- *   }
- * });
- */
 export function useRealtime<T = Record<string, unknown>>({
   table,
   schema = "public",
@@ -44,26 +25,26 @@ export function useRealtime<T = Record<string, unknown>>({
   enabled = true,
 }: UseRealtimeOptions<T>) {
   const channelRef = useRef<RealtimeChannel | null>(null);
+  
+  // Keep a stable ref to onChange so it never triggers re-subscription
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
-  const subscribe = useCallback(() => {
-    if (!enabled || !onChange) return;
+  useEffect(() => {
+    if (!enabled) return;
 
-    // Unsubscribe from existing channel if any
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
+    // Unique channel name per instance to avoid collisions
+    const channelName = `${table}-${schema}-${Math.random().toString(36).slice(2)}`;
 
     const channel = supabase
-      .channel(`${table}-realtime`)
+      .channel(channelName)
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema,
-          table,
-        },
+        { event: "*", schema, table },
         (payload: RealtimePostgresChangesPayload<T>) => {
-          onChange({
+          onChangeRef.current?.({
             eventType: payload.eventType as ChangeEvent,
             newRecord: payload.new as T,
             oldRecord: payload.old as T,
@@ -75,23 +56,9 @@ export function useRealtime<T = Record<string, unknown>>({
     channelRef.current = channel;
 
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+      supabase.removeChannel(channel);
+      channelRef.current = null;
     };
-  }, [table, schema, onChange, enabled]);
-
-  useEffect(() => {
-    const cleanup = subscribe();
-    return () => {
-      if (cleanup) cleanup();
-    };
-  }, [subscribe]);
-
-  return {
-    /** Force re-subscribe (useful after a reconnect) */
-    resubscribe: subscribe,
-  };
+  // Only re-subscribe if table, schema, or enabled actually changes
+  }, [table, schema, enabled]);
 }
-
