@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useInventoryRealtime } from "@/hooks/useRealtimeSubscription";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export default function Categories() {
   const [deleteAttributeId, setDeleteAttributeId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
       const { data: cats } = await supabase.from("categories").select("*").order("created_at", { ascending: false });
       if (!cats) return;
@@ -44,15 +44,17 @@ export default function Categories() {
       (products || []).forEach((p) => { if (p.category_id) counts[p.category_id] = (counts[p.category_id] || 0) + 1; });
       setCategories(cats.map((c) => ({ ...c, product_count: counts[c.id] || 0 })));
     });
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   // Subscribe to real-time updates for products and categories
+  const handleInventoryChange = useCallback(() => {
+    load();
+  }, [load]);
+
   useInventoryRealtime({
-    onChange: () => {
-      load();
-    },
+    onChange: handleInventoryChange,
   });
 
   const openCreate = () => {

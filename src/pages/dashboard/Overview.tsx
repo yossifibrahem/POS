@@ -241,20 +241,24 @@ export default function Overview() {
 
   // Real-time cart updates (sales, revenue, profit, transactions)
   // Only active when viewing today
+  const handleCartChange = useCallback(() => {
+    if (isToday) {
+      fetchDailyData(selectedDate);
+    }
+  }, [isToday, selectedDate, fetchDailyData]);
+
   useCartRealtime({
-    onChange: () => {
-      if (isToday) {
-        fetchDailyData(selectedDate);
-      }
-    },
+    onChange: handleCartChange,
   });
 
   // Real-time inventory updates (products, categories, out of stock)
   // Always active as these can change at any time
+  const handleInventoryChange = useCallback(() => {
+    fetchStaticData();
+  }, [fetchStaticData]);
+
   useInventoryRealtime({
-    onChange: () => {
-      fetchStaticData();
-    },
+    onChange: handleInventoryChange,
   });
 
   const refreshData = () => {

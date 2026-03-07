@@ -105,11 +105,13 @@ export default function NewSale() {
   }, []);
 
   // Realtime subscriptions - keep data fresh
+  const handleInventoryChange = useCallback(() => {
+    refreshProducts();
+    refreshCategories();
+  }, [refreshProducts, refreshCategories]);
+
   useInventoryRealtime({
-    onChange: () => {
-      refreshProducts();
-      refreshCategories();
-    },
+    onChange: handleInventoryChange,
   });
 
   useCustomerRealtime({

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -63,22 +63,24 @@ export default function Products() {
   const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>([]);
   const [productAttributes, setProductAttributes] = useState<Record<string, string | number | boolean>>({});
 
-  const load = async () => {
+  const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
       const { data } = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
       setProducts((data || []) as Product[]);
       const { data: cats } = await supabase.from("categories").select("*").order("name");
       setCategories(cats || []);
     });
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   // Subscribe to real-time updates for products and categories
+  const handleInventoryChange = useCallback(() => {
+    load();
+  }, [load]);
+
   useInventoryRealtime({
-    onChange: () => {
-      load();
-    },
+    onChange: handleInventoryChange,
   });
 
 
