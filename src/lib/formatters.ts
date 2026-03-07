@@ -16,7 +16,14 @@ export function formatDate(date: string | Date): string {
  * Format a date to locale date and time string
  */
 export function formatDateTime(date: string | Date): string {
-  return new Date(date).toLocaleString();
+  return new Date(date).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
 }
 
 /**
