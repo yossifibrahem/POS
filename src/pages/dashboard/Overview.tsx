@@ -6,18 +6,7 @@ import { canSeeCostAndProfit } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  Package, 
-  Users, 
-  ShoppingCart, 
-  DollarSign, 
-  XCircle,
-  TrendingUp,
-  ChevronLeft,
-  ChevronRight,
-  Calendar,
-  Tags
-} from "lucide-react";
+import { Package, Users, ShoppingCart, DollarSign, XCircle,TrendingUp,ChevronLeft,ChevronRight,Calendar,Tags} from "lucide-react";
 import { formatCurrency, formatDateTime, formatRelativeTime } from "@/lib/formatters";
 import { StatCardSkeleton } from "@/components/LoadingGrid";
 import { CartDetailModal } from "@/components/CartDetailModal";
