@@ -120,7 +120,7 @@ export function ProductDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[95vh] p-0">
+      <DialogContent className="sm:max-w-2xl max-h-[95vh] p-0" aria-describedby={undefined}>
         <DialogHeader className="px-6 pt-6">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Package className="h-5 w-5 text-primary" />

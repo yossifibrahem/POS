@@ -222,7 +222,7 @@ export default function Categories() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] p-0">
+        <DialogContent className="max-w-2xl max-h-[85vh] p-0" aria-describedby={undefined}>
           <DialogHeader className="px-6 pt-6">
             <DialogTitle>{editing ? "Edit Category" : "Add Category"}</DialogTitle>
           </DialogHeader>

@@ -148,7 +148,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[95vh] p-0">
+      <DialogContent className="sm:max-w-2xl max-h-[95vh] p-0" aria-describedby={undefined}>
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Sale Details</DialogTitle>
         </DialogHeader>
