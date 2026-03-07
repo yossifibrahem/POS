@@ -240,7 +240,7 @@ export default function Products() {
 
   const stockBadge = (stock: number) => {
     if (stock === 0) return <Badge variant="destructive">Out of Stock</Badge>;
-    if (stock < 10) return <Badge variant="secondary">Low Stock</Badge>;
+    if (stock <= 2) return <Badge variant="secondary">Low Stock</Badge>;
     return <Badge variant="outline">In Stock</Badge>;
   };
 

@@ -1,14 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { canSeeCostAndProfit } from "@/lib/permissions";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Package, Users, ShoppingCart, DollarSign, AlertTriangle, TrendingUp, Clock, ArrowUpRight, Tags } from "lucide-react";
-import { formatCurrency, formatDateTime, getLocalDateRange, formatRelativeTime } from "@/lib/formatters";
-import { StatCardSkeleton, LoadingGrid } from "@/components/LoadingGrid";
+import { Button } from "@/components/ui/button";
+import { 
+  Package, 
+  Users, 
+  ShoppingCart, 
+  DollarSign, 
+  XCircle,
+  TrendingUp,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  Tags
+} from "lucide-react";
+import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { StatCardSkeleton } from "@/components/LoadingGrid";
 import { CartDetailModal } from "@/components/CartDetailModal";
 
 interface Cart {
@@ -18,7 +29,7 @@ interface Cart {
   created_at: string;
   status?: string;
   refund_status?: string;
-  customers?: { profiles?: { full_name?: string } | null };
+  customer_name?: string | null;
   processed_by_name?: string | null;
   line_items?: { sold_quantity: number; refunded_quantity: number; product_name?: string }[];
 }
@@ -29,35 +40,97 @@ interface Product {
   stock: number;
 }
 
+interface DailyStats {
+  sales: number;
+  revenue: number;
+  profit: number;
+}
+
+function formatDateForDisplay(date: Date): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const targetDate = new Date(date);
+  targetDate.setHours(0, 0, 0, 0);
+  
+  if (targetDate.getTime() === today.getTime()) {
+    return "Today";
+  }
+  
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  if (targetDate.getTime() === yesterday.getTime()) {
+    return "Yesterday";
+  }
+  
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function getDateRange(date: Date): { start: string; end: string } {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  
+  return {
+    start: start.toISOString(),
+    end: end.toISOString(),
+  };
+}
+
 export default function Overview() {
   const navigate = useNavigate();
   const { adminLevel } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ products: 0, categories: 0, customers: 0, salesToday: 0, revenueToday: 0, profitToday: 0 });
+  const [loadingDaily, setLoadingDaily] = useState(true);
+  const [loadingStatic, setLoadingStatic] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [dailyStats, setDailyStats] = useState<DailyStats>({ sales: 0, revenue: 0, profit: 0 });
   const [recentCarts, setRecentCarts] = useState<Cart[]>([]);
-  const [lowStock, setLowStock] = useState<Product[]>([]);
+  const [staticStats, setStaticStats] = useState({ products: 0, categories: 0, customers: 0 });
+  const [outOfStock, setOutOfStock] = useState<Product[]>([]);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  useEffect(() => {
-    const { start, end } = getLocalDateRange();
+  const fetchDailyData = useCallback(async (date: Date) => {
+    setLoadingDaily(true);
+    const { start, end } = getDateRange(date);
 
-    Promise.all([
-      supabase.from("products").select("id", { count: "exact", head: true }),
-      supabase.from("categories").select("id", { count: "exact", head: true }),
-      supabase.from("customers").select("id", { count: "exact", head: true }),
-      supabase.from("cart_summary").select("total, net_amount").gte("created_at", start).lte("created_at", end).eq("status", "completed").neq("refund_status", "fully_refunded"),
-      supabase.from("cart_summary").select("*").eq("status", "completed").gte("created_at", start).lte("created_at", end).neq("refund_status", "fully_refunded").order("created_at", { ascending: false }).limit(10),
-      supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
-      supabase.from("cart_line_items").select("sold_quantity, refunded_quantity, unit_price, product_cost, carts!inner(created_at)").gte("carts.created_at", start).lte("carts.created_at", end),
-    ]).then(async ([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, lineItemsRes]) => {
-      const todayCarts = todayCartsRes.data || [];
+    try {
+      const [cartsRes, lineItemsRes, recentRes] = await Promise.all([
+        supabase
+          .from("cart_summary")
+          .select("total, net_amount")
+          .gte("created_at", start)
+          .lte("created_at", end)
+          .eq("status", "completed")
+          .neq("refund_status", "fully_refunded"),
+        supabase
+          .from("cart_line_items")
+          .select("sold_quantity, refunded_quantity, unit_price, product_cost, carts!inner(created_at)")
+          .gte("carts.created_at", start)
+          .lte("carts.created_at", end),
+        supabase
+          .from("cart_summary")
+          .select("*")
+          .eq("status", "completed")
+          .gte("created_at", start)
+          .lte("created_at", end)
+          .neq("refund_status", "fully_refunded")
+          .order("created_at", { ascending: false })
+          .limit(10),
+      ]);
+
+      const todayCarts = cartsRes.data || [];
       const lineItems = lineItemsRes.data || [];
       const cartsData = recentRes.data || [];
-      
-      // Calculate profit: (unit_price - cost) * (sold_quantity - refunded_quantity)
-      // This properly excludes refunded items from profit calculation
-      const profitToday = lineItems.reduce((total, item) => {
+
+      const profit = lineItems.reduce((total, item) => {
         const cost = Number(item.product_cost || 0);
         const unitPrice = Number(item.unit_price || 0);
         const soldQty = Number(item.sold_quantity || 0);
@@ -65,16 +138,14 @@ export default function Overview() {
         const netQty = soldQty - refundedQty;
         return total + ((unitPrice - cost) * netQty);
       }, 0);
-      
-      // Fetch line items for each cart
+
       if (cartsData.length > 0) {
         const cartIds = cartsData.map(c => c.id);
         const { data: lineItemsData } = await supabase
           .from("cart_line_items")
           .select("cart_id, product_name, sold_quantity, refunded_quantity")
           .in("cart_id", cartIds);
-        
-        // Group line items by cart_id
+
         const lineItemsByCart: Record<string, { product_name: string | null; sold_quantity: number | null; refunded_quantity: number | null }[]> = {};
         lineItemsData?.forEach(item => {
           if (!lineItemsByCart[item.cart_id]) {
@@ -86,96 +157,245 @@ export default function Overview() {
             refunded_quantity: item.refunded_quantity
           });
         });
-        
-        // Attach line items to each cart
+
         const cartsWithItems = cartsData.map(cart => ({
           ...cart,
           line_items: lineItemsByCart[cart.id] || []
         }));
-        
+
         setRecentCarts(cartsWithItems);
       } else {
         setRecentCarts([]);
       }
-      
-      setStats({
+
+      setDailyStats({
+        sales: todayCarts.length,
+        revenue: todayCarts.reduce((s, c) => s + Number(c.net_amount ?? c.total), 0),
+        profit,
+      });
+    } catch (error) {
+      console.error("Error fetching daily data:", error);
+    } finally {
+      setLoadingDaily(false);
+    }
+  }, []);
+
+  const fetchStaticData = useCallback(async () => {
+    setLoadingStatic(true);
+
+    try {
+      const [productsRes, categoriesRes, customersRes, outOfStockRes] = await Promise.all([
+        supabase.from("products").select("id", { count: "exact", head: true }),
+        supabase.from("categories").select("id", { count: "exact", head: true }),
+        supabase.from("customers").select("id", { count: "exact", head: true }),
+        supabase.from("products").select("*").eq("stock", 0).order("name", { ascending: true }),
+      ]);
+
+      setStaticStats({
         products: productsRes.count || 0,
         categories: categoriesRes.count || 0,
         customers: customersRes.count || 0,
-        salesToday: todayCarts.length,
-        revenueToday: todayCarts.reduce((s, c) => s + Number(c.net_amount ?? c.total), 0),
-        profitToday,
       });
-      setLowStock(lowStockRes.data || []);
-      setLoading(false);
-    });
+      setOutOfStock(outOfStockRes.data || []);
+    } catch (error) {
+      console.error("Error fetching static data:", error);
+    } finally {
+      setLoadingStatic(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchDailyData(selectedDate);
+  }, [selectedDate, fetchDailyData]);
 
-  const allStatCards = [
-    { label: "Total Products", value: stats.products, icon: Package, description: "In inventory", to: "/dashboard/products" },
-    { label: "Total Categories", value: stats.categories, icon: Tags, description: "Product groups", to: "/dashboard/categories" },
-    { label: "Total Customers", value: stats.customers, icon: Users, description: "Registered", to: "/dashboard/customers" },
-    { label: "Sales Today", value: stats.salesToday, icon: ShoppingCart, description: "Completed orders", to: "/dashboard/sales/history" },
-    { label: "Revenue Today", value: formatCurrency(stats.revenueToday), icon: DollarSign, description: "Total sales", to: "/dashboard/sales/history" },
-    { label: "Profit Today", value: formatCurrency(stats.profitToday), icon: TrendingUp, description: "Net earnings", to: "/dashboard/sales/history" },
+  useEffect(() => {
+    fetchStaticData();
+  }, [fetchStaticData]);
+
+  const handlePreviousDay = () => {
+    const prev = new Date(selectedDate);
+    prev.setDate(prev.getDate() - 1);
+    setSelectedDate(prev);
+  };
+
+  const handleNextDay = () => {
+    const next = new Date(selectedDate);
+    next.setDate(next.getDate() + 1);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (next.getTime() <= today.getTime()) {
+      setSelectedDate(next);
+    }
+  };
+
+  const handleToday = () => {
+    setSelectedDate(new Date());
+  };
+
+  const canGoNext = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    return selected.getTime() < today.getTime();
+  };
+
+  const refreshData = () => {
+    fetchDailyData(selectedDate);
+    fetchStaticData();
+  };
+
+  const dailyStatCards = [
+    { label: "Sales", value: dailyStats.sales, icon: ShoppingCart, color: "text-muted-foreground", bgColor: "bg-muted" },
+    { label: "Revenue", value: formatCurrency(dailyStats.revenue), icon: DollarSign, color: "text-muted-foreground", bgColor: "bg-muted" },
+    { label: "Profit", value: formatCurrency(dailyStats.profit), icon: TrendingUp, color: "text-muted-foreground", bgColor: "bg-muted" },
   ];
 
-  // Filter out profit card for med and low admins
-  const statCards = canSeeCostAndProfit(adminLevel) 
-    ? allStatCards 
-    : allStatCards.filter(card => card.label !== "Profit Today");
+  const staticStatCards = [
+    { label: "Products", value: staticStats.products, icon: Package, description: "In inventory", to: "/dashboard/products" },
+    { label: "Categories", value: staticStats.categories, icon: Tags, description: "Product groups", to: "/dashboard/categories" },
+    { label: "Customers", value: staticStats.customers, icon: Users, description: "Registered", to: "/dashboard/customers" },
+    { label: "Out of Stock", value: outOfStock.length, icon: XCircle, description: "Need restock", to: "/dashboard/products?sort=stock-asc" },
+  ];
+
+  const filteredDailyStats = canSeeCostAndProfit(adminLevel)
+    ? dailyStatCards
+    : dailyStatCards.filter(card => card.label !== "Profit");
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-        {loading ? (
-          <>
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <StatCardSkeleton key={i} />
-            ))}
-          </>
-        ) : (
-          statCards.map((s) => (
-            <Card 
-              key={s.label} 
-              className="hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
-              onClick={() => navigate(s.to)}
-            >
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {s.label}
-                </CardTitle>
-                <div className="p-1.5 bg-muted rounded-md">
-                  <s.icon className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="text-2xl font-bold tracking-tight">{s.value}</div>
-                <p className="text-xs text-muted-foreground mt-1">{s.description}</p>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+    <div className="p-4 md:p-6 space-y-8">
+      {/* Inventory Overview Section */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-muted rounded-lg">
+            <TrendingUp className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold">Inventory Overview</h2>
+            <p className="text-sm text-muted-foreground">Your store metrics at a glance</p>
+          </div>
+        </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {loadingStatic ? (
+            <>
+              {[1, 2, 3, 4].map((i) => (
+                <StatCardSkeleton key={i} />
+              ))}
+            </>
+          ) : (
+            staticStatCards.map((stat) => (
+              <Card 
+                key={stat.label}
+                className="hover:shadow-md transition-all cursor-pointer"
+                onClick={() => navigate(stat.to)}
+              >
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                      <p className="text-2xl font-bold tracking-tight">{stat.value}</p>
+                      <p className="text-xs text-muted-foreground">{stat.description}</p>
+                    </div>
+                    <div className="p-3 bg-muted rounded-xl">
+                      <stat.icon className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      </section>
+
+      {/* Daily Updated Section */}
+      <section className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-muted rounded-lg">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Daily Overview</h2>
+              <p className="text-sm text-muted-foreground">Monitor your daily performance</p>
+            </div>
+          </div>
+          
+          {/* Date Navigation */}
+          <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handlePreviousDay}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              className="px-3 h-8 font-medium min-w-[120px]"
+              onClick={handleToday}
+            >
+              {formatDateForDisplay(selectedDate)}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleNextDay}
+              disabled={!canGoNext()}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Daily Stats Grid */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          {loadingDaily ? (
+            <>
+              {[1, 2, 3].map((i) => (
+                <StatCardSkeleton key={i} />
+              ))}
+            </>
+          ) : (
+            filteredDailyStats.map((stat) => (
+              <Card 
+                key={stat.label} 
+                className="transition-colors"
+              >
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                      <p className="text-2xl font-bold tracking-tight">{stat.value}</p>
+                    </div>
+                    <div className={`p-3 rounded-xl ${stat.bgColor}`}>
+                      <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+
+        {/* Recent Transactions */}
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-3 border-b shrink-0">
             <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-semibold">Sales Today</CardTitle>
-                <CardDescription>Today's completed transactions</CardDescription>
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+                <CardTitle className="text-base font-semibold">Transactions</CardTitle>
               </div>
-              <div className="p-2 bg-muted rounded-md">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </div>
+              <Badge variant="secondary" className="text-xs">
+                {recentCarts.length} orders
+              </Badge>
             </div>
           </CardHeader>
-          <Separator />
-          <CardContent className="pt-4">
-            {loading ? (
-              <div className="space-y-3">
+          <CardContent className="p-0 max-h-[400px] overflow-y-auto">
+            {loadingDaily ? (
+              <div className="p-4 space-y-3">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="flex items-center justify-between p-3 rounded-lg border">
                     <div className="space-y-1">
@@ -187,207 +407,90 @@ export default function Overview() {
                 ))}
               </div>
             ) : recentCarts.length === 0 ? (
-              <div className="text-center py-8">
-                <ShoppingCart className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">No sales recorded yet</p>
-                <p className="text-xs text-muted-foreground mt-1">New sales will appear here</p>
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="p-4 bg-muted rounded-full mb-3">
+                  <ShoppingCart className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium">No transactions</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  No sales recorded for {formatDateForDisplay(selectedDate).toLowerCase()}
+                </p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+              <div className="divide-y">
                 {recentCarts.map((cart) => (
                   <div 
                     key={cart.id} 
-                    className="group p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                    className="group p-4 hover:bg-muted/50 transition-colors cursor-pointer"
                     onClick={() => { setSelectedCartId(cart.id); setModalOpen(true); }}
                   >
                     <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium leading-none">
-                          {formatRelativeTime(cart.created_at)} • {cart.line_items?.length || 0} items
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Processed by: {cart.processed_by_name || "Unknown"}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium truncate">
+                            {formatDateTime(cart.created_at)} • {cart.line_items?.length || 0} items
+                          </p>
+                          {cart.refund_status === 'fully_refunded' && (
+                            <Badge variant="destructive" className="text-xs shrink-0">
+                              Refunded
+                            </Badge>
+                          )}
+                          {cart.refund_status === 'partially_refunded' && (
+                            <Badge variant="secondary" className="text-xs shrink-0">
+                              Partial
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {cart.customer_name || "Walk-in Customer"} • Processed by: {cart.processed_by_name || "Unknown"}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 ml-4">
                         <span className="text-sm font-semibold">{formatCurrency(Number(cart.net_amount ?? cart.total))}</span>
-                        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </div>
-                    <div className="mt-2 pt-2 border-t border-dashed">
-                      <p className="text-xs font-medium text-foreground mb-1">Items:</p>
-                      {cart.line_items && cart.line_items.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {cart.line_items.slice(0, 4).map((item, idx) => {
+                    {cart.line_items && cart.line_items.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-dashed">
+                        <div className="flex flex-wrap gap-1.5">
+                          {cart.line_items.slice(0, 3).map((item, idx) => {
                             const refundedQty = item.refunded_quantity || 0;
-                            const isFullyRefunded = refundedQty >= item.sold_quantity;
+                            const soldQty = item.sold_quantity || 0;
+                            const isFullyRefunded = refundedQty >= soldQty;
                             const isPartiallyRefunded = refundedQty > 0 && !isFullyRefunded;
-                            const activeQty = item.sold_quantity - refundedQty;
+                            const activeQty = soldQty - refundedQty;
                             
                             return (
                               <span 
                                 key={idx} 
-                                className={`text-sm px-3 py-1 rounded-md ${
-                                  isFullyRefunded 
-                                    ? 'bg-red-100 text-red-600 line-through' 
-                                    : isPartiallyRefunded
-                                      ? 'bg-yellow-100 text-yellow-700'
-                                      : 'bg-muted text-muted-foreground'
-                                }`}
+                                className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground"
                               >
-                                {item.product_name || "Unknown"} ({isPartiallyRefunded ? `${activeQty}/${item.sold_quantity}` : item.sold_quantity})
-                                {isFullyRefunded && ' - Refunded'}
-                                {isPartiallyRefunded && ' - Partial'}
+                                {item.product_name?.split(' - ')[0] || "Unknown"}{isPartiallyRefunded ? ` (${activeQty}/${soldQty})` : ` (${soldQty})`}
                               </span>
                             );
                           })}
-                          {cart.line_items.length > 4 && (
-                            <span className="text-sm text-muted-foreground px-2 py-1">
-                              +{cart.line_items.length - 4} more
+                          {cart.line_items.length > 3 && (
+                            <span className="text-xs text-muted-foreground px-1.5 py-0.5">
+                              +{cart.line_items.length - 3} more
                             </span>
                           )}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Low Stock Alerts
-                </CardTitle>
-                <CardDescription>Products requiring attention</CardDescription>
-              </div>
-              <div className="p-2 bg-muted rounded-md">
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </div>
-          </CardHeader>
-          <Separator />
-          <CardContent className="pt-4">
-            {loading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg border">
-                    <div className="h-4 w-40 bg-muted rounded animate-pulse" />
-                    <div className="h-5 w-16 bg-muted rounded animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            ) : lowStock.length === 0 ? (
-              <div className="text-center py-8">
-                <Package className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">All products well stocked</p>
-                <p className="text-xs text-muted-foreground mt-1">No action required</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                {lowStock.map((p) => (
-                  <div 
-                    key={p.id} 
-                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`h-2 w-2 rounded-full ${p.stock === 0 ? 'bg-destructive' : 'bg-amber-500'}`} />
-                      <span className="text-sm font-medium">{p.name}</span>
-                    </div>
-                    <Badge 
-                      variant={p.stock === 0 ? "destructive" : "outline"} 
-                      className="text-xs"
-                    >
-                      {p.stock === 0 ? "Out of stock" : `${p.stock} left`}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      </section>
 
       <CartDetailModal
         cartId={selectedCartId}
         open={modalOpen}
         onOpenChange={setModalOpen}
-        onRefund={() => {
-          // Refresh the data after refund
-          const { start, end } = getLocalDateRange();
-          Promise.all([
-            supabase.from("products").select("id", { count: "exact", head: true }),
-            supabase.from("categories").select("id", { count: "exact", head: true }),
-            supabase.from("customers").select("id", { count: "exact", head: true }),
-            supabase.from("cart_summary").select("total, net_amount").gte("created_at", start).lte("created_at", end).eq("status", "completed").neq("refund_status", "fully_refunded"),
-            supabase.from("cart_summary").select("*").eq("status", "completed").gte("created_at", start).lte("created_at", end).neq("refund_status", "fully_refunded").order("created_at", { ascending: false }).limit(10),
-            supabase.from("products").select("*").lte("stock", 5).order("stock", { ascending: true }),
-            supabase.from("cart_line_items").select("sold_quantity, refunded_quantity, unit_price, product_cost, carts!inner(created_at)").gte("carts.created_at", start).lte("carts.created_at", end),
-          ]).then(async ([productsRes, categoriesRes, customersRes, todayCartsRes, recentRes, lowStockRes, lineItemsRes]) => {
-            const todayCarts = todayCartsRes.data || [];
-            const lineItems = lineItemsRes.data || [];
-            const cartsData = recentRes.data || [];
-            
-            // Calculate profit: (unit_price - cost) * (sold_quantity - refunded_quantity)
-            // This properly excludes refunded items from profit calculation
-            const profitToday = lineItems.reduce((total, item) => {
-              const cost = Number(item.product_cost || 0);
-              const unitPrice = Number(item.unit_price || 0);
-              const soldQty = Number(item.sold_quantity || 0);
-              const refundedQty = Number(item.refunded_quantity || 0);
-              const netQty = soldQty - refundedQty;
-              return total + ((unitPrice - cost) * netQty);
-            }, 0);
-
-            // Fetch line items for each cart
-            if (cartsData.length > 0) {
-              const cartIds = cartsData.map(c => c.id);
-              const { data: lineItemsData } = await supabase
-                .from("cart_line_items")
-                .select("cart_id, product_name, sold_quantity, refunded_quantity")
-                .in("cart_id", cartIds);
-              
-              // Group line items by cart_id
-              const lineItemsByCart: Record<string, { product_name: string | null; sold_quantity: number; refunded_quantity: number }[]> = {};
-              lineItemsData?.forEach(item => {
-                if (!lineItemsByCart[item.cart_id]) {
-                  lineItemsByCart[item.cart_id] = [];
-                }
-                lineItemsByCart[item.cart_id].push({
-                  product_name: item.product_name,
-                  sold_quantity: item.sold_quantity,
-                  refunded_quantity: item.refunded_quantity
-                });
-              });
-              
-              // Attach line items to each cart
-              const cartsWithItems = cartsData.map(cart => ({
-                ...cart,
-                line_items: lineItemsByCart[cart.id] || []
-              }));
-              
-              setRecentCarts(cartsWithItems);
-            } else {
-              setRecentCarts([]);
-            }
-            
-            setStats({
-              products: productsRes.count || 0,
-              categories: categoriesRes.count || 0,
-              customers: customersRes.count || 0,
-              salesToday: todayCarts.length,
-              revenueToday: todayCarts.reduce((s, c) => s + Number(c.net_amount ?? c.total), 0),
-              profitToday,
-            });
-            setLowStock(lowStockRes.data || []);
-          });
-        }}
+        onRefund={refreshData}
       />
     </div>
   );
 }
+
