@@ -34,6 +34,7 @@ interface Cart {
   updated_at: string | null;
   customer_name: string | null;
   customer_email: string | null;
+  processed_by: string | null;
   processed_by_name: string | null;
   refunded_amount: number | null;
   net_amount: number | null;

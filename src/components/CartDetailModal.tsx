@@ -15,9 +15,10 @@ import { formatCurrency } from "@/lib/formatters";
 import { canSeeCostAndProfit } from "@/lib/permissions";
 
 type CartRow = { 
-  id: string; total: number; created_at: string; notes?: string | null; 
-  customers?: { profiles?: { full_name?: string; email?: string } | null }; 
-  admins?: { profiles?: { full_name?: string } | null } 
+  id: string; total: number; created_at: string; notes?: string | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  processed_by_name?: string | null;
 };
 
 type SoldItemRow = { 
@@ -49,7 +50,7 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
   const loadData = useCallback(async () => {
     if (!cartId) return;
     const [cartRes, itemsRes] = await Promise.all([
-      supabase.from("carts").select("*, customers(profiles(full_name, email)), admins(profiles(full_name))").eq("id", cartId).single(),
+      supabase.from("cart_summary").select("*").eq("id", cartId).single(),
       supabase.from("cart_line_items").select("*").eq("cart_id", cartId),
     ]);
     if (cartRes.data) setCart(cartRes.data);
@@ -157,8 +158,8 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
           <div className="space-y-4">
             <div className="rounded-lg border bg-card p-4 space-y-2">
               <div className="grid gap-2 text-sm sm:grid-cols-2">
-                <p><span className="font-medium">Customer:</span> {cart.customers?.profiles?.full_name || "Walk-in Customer"}</p>
-                <p><span className="font-medium">Processed by:</span> {cart.admins?.profiles?.full_name || "Unknown"}</p>
+                <p><span className="font-medium">Customer:</span> {cart.customer_name || "Walk-in Customer"}</p>
+                <p><span className="font-medium">Processed by:</span> {cart.processed_by_name || "Unknown"}</p>
                 <p><span className="font-medium">Date:</span> {new Date(cart.created_at).toLocaleString()}</p>
                 <p><span className="font-medium">Total:</span> {formatCurrency(netTotal)}</p>
                 {cart.notes && <p className="sm:col-span-2"><span className="font-medium">Notes:</span> {cart.notes}</p>}

@@ -20,6 +20,7 @@ interface Cart {
   status?: string;
   refund_status?: string;
   customer_name?: string | null;
+  processed_by?: string | null;
   processed_by_name?: string | null;
   line_items?: { sold_quantity: number; refunded_quantity: number; product_name?: string }[];
 }
