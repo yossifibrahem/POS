@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useSignOut } from "@/hooks/useSignOut";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminPresence } from "@/hooks/useAdminPresence";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -38,6 +39,9 @@ function DashboardContent() {
   const handleSignOut = useSignOut();
   const location = useLocation();
   const [pageTitle, setPageTitle] = useState("Overview");
+
+  // Ping admin presence on mount, every 60s, and on tab focus
+  useAdminPresence();
 
   // isMobile + setOpenMobile are the correct hooks for mobile sidebar state
   const { isMobile, setOpen, setOpenMobile } = useSidebar();

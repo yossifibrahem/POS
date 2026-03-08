@@ -1,18 +1,26 @@
 -- =============================================================================
--- COMPLETE DATABASE SCHEMA (v4)
+-- COMPLETE DATABASE SCHEMA (v5)
 -- Includes: admin level hierarchy (high / med / low)
+--           admin presence tracking (last_seen_at / is_online)
+--
+-- v5 changes vs v4:
+--   • admins.last_seen_at (TIMESTAMPTZ, nullable): records the most recent
+--     activity ping from each admin. NULL = never pinged since v5.
+--   • ping_admin_presence() RPC: SECURITY DEFINER function called by the
+--     frontend on page load, significant actions, and a ~60 s heartbeat.
+--     Updates the caller's own last_seen_at without relaxing the high-admin-
+--     only UPDATE policy on the admins table.
+--   • get_online_admins() RPC: returns all admins active in the last 5 min.
+--   • admin_profiles view: rebuilt with last_seen_at + is_online columns.
+--   • idx_admins_last_seen_at: BRIN index for fast active-window range scans.
 --
 -- v4 changes vs v3:
 --   • cart_summary view: added c.processed_by (UUID) column so the UI can
 --     reference the admin's UUID directly without a separate query.
---     Useful for ownership checks in low-admin flows and joining on the
---     client side without re-fetching the carts table.
 --
 -- v3 changes vs v2:
 --   • carts_update RLS policy extended: low admins can now update carts they
---     personally created (processed_by = auth.uid()), enabling the
---     pending → completed transition that auto-completes their own sales.
---     Med/high admins retain full update access to all carts.
+--     personally created (processed_by = auth.uid()).
 --
 -- Refund model: immutable refund ledger (refunds + refund_items)
 -- Identity model: shared `profiles` table — customers and admins both reference
@@ -112,16 +120,26 @@ CREATE TABLE public.customers (
 --   'high' → Full access to everything (default for existing/new admins)
 --   'med'  → Full access except cannot see product cost or profit figures
 --   'low'  → Can only create new sales and view their own sales history
+--
+-- last_seen_at:
+--   NULL   → Admin has never pinged since v5 migration (treat as offline)
+--   value  → Timestamp of the most recent ping from ping_admin_presence().
+--            is_online = (last_seen_at > now() - interval '5 minutes')
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.admins (
-  id         UUID                     NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
-  level      TEXT                     NOT NULL DEFAULT 'high'
-                                        CHECK (level IN ('high', 'med', 'low')),
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+  id           UUID                     NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+  level        TEXT                     NOT NULL DEFAULT 'high'
+                                          CHECK (level IN ('high', 'med', 'low')),
+  last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+  created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 COMMENT ON COLUMN public.admins.level IS
   'high = full access | med = no cost/profit visibility | low = new-sale + own history only';
+
+COMMENT ON COLUMN public.admins.last_seen_at IS
+  'Timestamp of the most recent activity ping from this admin. '
+  'NULL = never seen. Used to compute is_online (within 5-minute window).';
 
 -- ---------------------------------------------------------------------------
 -- Carts
@@ -208,6 +226,9 @@ CREATE INDEX idx_refund_items_sold_product_id     ON public.refund_items(sold_pr
 
 CREATE INDEX idx_admins_level                     ON public.admins(level);
 
+-- BRIN index: cheap and effective for monotonically-updated timestamp columns
+CREATE INDEX idx_admins_last_seen_at              ON public.admins USING BRIN (last_seen_at);
+
 
 -- =============================================================================
 -- HELPER FUNCTIONS  (SECURITY DEFINER prevents RLS recursion)
@@ -215,7 +236,6 @@ CREATE INDEX idx_admins_level                     ON public.admins(level);
 
 -- ---------------------------------------------------------------------------
 -- is_admin  — TRUE for any admin regardless of level.
--- Kept stable so all existing RLS policies and application code work unchanged.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.is_admin(_user_id UUID)
 RETURNS BOOLEAN
@@ -245,8 +265,6 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- is_admin_high  — TRUE only for high-level admins.
--- Used in policies that gate: promoting admins, editing other users' profiles,
--- deleting customer role rows.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.is_admin_high(_user_id UUID)
 RETURNS BOOLEAN
@@ -262,8 +280,6 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- is_admin_med_or_above  — TRUE for high OR med admins.
--- Used in policies that gate: product/category writes, refunds, cart updates,
--- viewing all carts, managing profiles, managing other admins.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.is_admin_med_or_above(_user_id UUID)
 RETURNS BOOLEAN
@@ -276,6 +292,72 @@ AS $$
     SELECT 1 FROM public.admins WHERE id = _user_id AND level IN ('high', 'med')
   );
 $$;
+
+-- ---------------------------------------------------------------------------
+-- ping_admin_presence()
+--   Called by the authenticated admin to record their current presence.
+--   SECURITY DEFINER bypasses the high-admin-only UPDATE RLS policy, so any
+--   admin level can update their own last_seen_at row safely.
+--   Returns the server timestamp of the ping (useful as a clock sync signal).
+--
+--   Frontend usage:
+--     await supabase.rpc('ping_admin_presence');
+--     // Call on page load, on each sale/refund, and every ~60 s as heartbeat
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.ping_admin_presence()
+RETURNS TIMESTAMP WITH TIME ZONE
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_now TIMESTAMP WITH TIME ZONE := now();
+BEGIN
+  UPDATE public.admins
+     SET last_seen_at = v_now
+   WHERE id = auth.uid();
+
+  RETURN v_now;
+END;
+$$;
+
+COMMENT ON FUNCTION public.ping_admin_presence() IS
+  'Updates last_seen_at for the calling admin to now(). '
+  'Call on page load, on each sale/refund action, and every ~60 s as a heartbeat. '
+  'Returns the server timestamp of the ping.';
+
+-- ---------------------------------------------------------------------------
+-- get_online_admins()
+--   Returns id + full_name + level + last_seen_at for every admin whose
+--   last_seen_at is within the 5-minute active window.
+--   Only callable by admins (non-admins receive an empty result set).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_online_admins()
+RETURNS TABLE (
+  id           UUID,
+  full_name    TEXT,
+  level        TEXT,
+  last_seen_at TIMESTAMP WITH TIME ZONE
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT a.id,
+         p.full_name,
+         a.level,
+         a.last_seen_at
+    FROM public.admins   a
+    JOIN public.profiles p ON p.id = a.id
+   WHERE a.last_seen_at > now() - INTERVAL '5 minutes'
+     AND public.is_admin(auth.uid())
+   ORDER BY a.last_seen_at DESC;
+$$;
+
+COMMENT ON FUNCTION public.get_online_admins() IS
+  'Returns all admins active within the last 5 minutes. '
+  'Callable by any admin level; non-admins get an empty result set.';
 
 
 -- =============================================================================
@@ -323,9 +405,6 @@ CREATE TRIGGER trg_sold_products_updated_at
 --   pending   → completed : DEDUCT stock for all sold_products line items
 --   pending   → cancelled : DELETE sold_products (stock was never deducted)
 --   completed → cancelled : BLOCKED — insert a refund record instead
---
---   Stock is intentionally NOT touched on sold_products INSERT/DELETE so that
---   building / editing a pending cart never affects inventory.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.manage_stock_on_cart_status_change()
@@ -339,13 +418,11 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Block completed → cancelled (insert a refund record instead)
   IF OLD.status = 'completed' AND NEW.status = 'cancelled' THEN
     RAISE EXCEPTION
       'Cannot cancel a completed cart. Insert a refund record instead.';
   END IF;
 
-  -- pending → completed : deduct stock for all line items
   IF OLD.status = 'pending' AND NEW.status = 'completed' THEN
     UPDATE public.products p
        SET stock = stock - sp.quantity
@@ -353,7 +430,6 @@ BEGIN
      WHERE sp.cart_id    = NEW.id
        AND sp.product_id = p.id;
 
-  -- pending → cancelled : delete line items (stock was never deducted)
   ELSIF OLD.status = 'pending' AND NEW.status = 'cancelled' THEN
     DELETE FROM public.sold_products WHERE cart_id = NEW.id;
   END IF;
@@ -369,14 +445,6 @@ CREATE TRIGGER trg_manage_stock_on_cart_status_change
 
 -- =============================================================================
 -- TRIGGER FUNCTION: restock on refund_items INSERT
---
---   Fires once per refund line item inserted. Restores stock for the
---   product referenced by that sold_products row.
---
---   App flow for a refund:
---     1. INSERT INTO refunds  (cart_id, processed_by, refund_amount)
---     2. INSERT INTO refund_items (refund_id, sold_product_id, quantity, unit_price)
---        -- one row per returned line item; trigger handles restocking
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.restock_on_refund_item()
@@ -403,8 +471,6 @@ CREATE TRIGGER trg_restock_on_refund_item
 
 -- =============================================================================
 -- TRIGGER FUNCTION: cart total recalculation
---   carts.total = the original sale total (immutable after completion).
---   Net amount after refunds is computed via the cart_refund_status view.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.recalculate_cart_total()
@@ -437,8 +503,6 @@ CREATE TRIGGER trg_recalculate_cart_total
 
 -- =============================================================================
 -- TRIGGER FUNCTION: clear product attributes when category is removed
---   When category_id is set to NULL (via ON DELETE SET NULL or manual update),
---   clear the attributes JSONB so stale keys don't linger.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.clear_product_attributes_on_category_delete()
@@ -469,7 +533,6 @@ CREATE TRIGGER trg_clear_product_attributes_on_category_delete
 -- ---------------------------------------------------------------------------
 -- cart_refund_status
 --   Derives refund status per cart from the ledger.
---   Returns: sale_total, refunded_amount, net_amount, refund_status
 --   refund_status: 'not_refunded' | 'partially_refunded' | 'fully_refunded'
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.cart_refund_status AS
@@ -534,8 +597,7 @@ SELECT c.id,
 
 -- ---------------------------------------------------------------------------
 -- cart_line_items
---   sold_products joined with product name and total refunded quantity
---   aggregated across all refund events for that line item.
+--   sold_products joined with product name and total refunded quantity.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.cart_line_items AS
 SELECT sp.id              AS sold_product_id,
@@ -547,7 +609,7 @@ SELECT sp.id              AS sold_product_id,
        (sp.quantity - COALESCE(ri_agg.refunded_quantity, 0)) * sp.unit_price AS net_line_total,
        p.id               AS product_id,
        p.name             AS product_name,
-       p.cost             AS product_cost,       -- frontend hides this for med/low
+       p.cost             AS product_cost,
        p.attributes       AS product_attributes
   FROM public.sold_products sp
   LEFT JOIN public.products p ON p.id = sp.product_id
@@ -586,19 +648,30 @@ SELECT r.id              AS refund_id,
 
 
 -- ---------------------------------------------------------------------------
--- admin_profiles
+-- admin_profiles  (v5: adds last_seen_at + is_online)
 --   Convenience view joining admins with their profile data and level.
---   Use in the Profiles management page.
+--   Use in the Profiles management page and any admin-presence UI.
+--
+--   Columns:
+--     is_online    — TRUE when last_seen_at > now() - interval '5 minutes'
+--     last_seen_at — NULL if the admin has never pinged since v5 migration
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.admin_profiles AS
 SELECT a.id,
        a.level,
-       a.created_at AS admin_since,
+       a.created_at                                          AS admin_since,
+       a.last_seen_at,
+       (a.last_seen_at > now() - INTERVAL '5 minutes')      AS is_online,
        p.full_name,
        p.email,
        p.phone
   FROM public.admins   a
   JOIN public.profiles p ON p.id = a.id;
+
+COMMENT ON VIEW public.admin_profiles IS
+  'Joins admins with their profile data. '
+  'is_online = TRUE when last_seen_at is within the last 5 minutes. '
+  'last_seen_at = NULL means the admin has never pinged since v5 migration.';
 
 
 -- =============================================================================
@@ -736,9 +809,11 @@ CREATE POLICY "customers_delete"
 
 
 -- ---------------------------------------------------------------------------
--- Admins: all admins can read the table (to see roles/levels)
+-- Admins: all admins can read the table (to see roles / levels / presence)
 --         only high admins can insert or delete admin rows
---         (level updates use the update path handled by high admin in the UI)
+--         only high admins can do general UPDATE (level changes, etc.)
+--         last_seen_at self-updates are handled by ping_admin_presence()
+--         which is SECURITY DEFINER and bypasses this policy entirely
 -- ---------------------------------------------------------------------------
 CREATE POLICY "admins_select"
   ON public.admins FOR SELECT
@@ -765,9 +840,8 @@ CREATE POLICY "admins_delete"
 -- ---------------------------------------------------------------------------
 -- Carts:
 --   SELECT — customers see own carts; med/high see all; low see only their own
---   INSERT — all admin levels (low admins must be able to create sales)
+--   INSERT — all admin levels
 --   UPDATE — med/high can update any cart; low admins can update their own
---            carts only (required to transition pending → completed on sale)
 --   DELETE — med/high only
 -- ---------------------------------------------------------------------------
 CREATE POLICY "carts_select"
@@ -804,9 +878,8 @@ CREATE POLICY "carts_delete"
 
 -- ---------------------------------------------------------------------------
 -- Sold Products:
---   SELECT — users see items on their own carts; SELECT via cart JOIN
---            naturally limits low admins to their own carts
---   INSERT — all admin levels (required to build a sale)
+--   SELECT — users see items on their own carts; low admins see their own
+--   INSERT — all admin levels
 --   UPDATE/DELETE — med/high only
 -- ---------------------------------------------------------------------------
 CREATE POLICY "sold_products_select"
@@ -901,5 +974,5 @@ CREATE POLICY "refund_items_delete"
 
 
 -- =============================================================================
--- END OF SCHEMA
+-- END OF SCHEMA (v5)
 -- =============================================================================

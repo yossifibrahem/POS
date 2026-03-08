@@ -14,10 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Search, Pencil, Trash2, Shield, ShieldCheck, ShieldX, User, Users, Mail, Phone, Calendar, Sliders } from "lucide-react";
+import { Search, Pencil, Trash2, Shield, ShieldCheck, ShieldX, User, Users, Mail, Phone, Calendar, Sliders, Circle } from "lucide-react";
 import { withLoading, handleError, handleSuccess } from "@/lib/api";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
-import { formatDateTime } from "@/lib/formatters";
+import { formatDateTime, formatRelativeTime } from "@/lib/formatters";
 
 interface Profile {
   id: string;
@@ -29,6 +29,9 @@ interface Profile {
   is_admin: boolean;
   is_customer: boolean;
   admin_level: AdminLevel;
+  // Admin presence fields from admin_profiles view
+  last_seen_at: string | null;
+  is_online: boolean | null;
 }
 
 export default function Profiles() {
@@ -60,10 +63,10 @@ export default function Profiles() {
         return;
       }
 
-      // Fetch all admins to determine admin status and level
+      // Fetch all admins with presence info from admin_profiles view
       const { data: adminsData, error: adminsError } = await supabase
-        .from("admins")
-        .select("id, level");
+        .from("admin_profiles")
+        .select("id, level, last_seen_at, is_online");
 
       if (adminsError) {
         handleError(adminsError, "Failed to load admin data");
@@ -80,15 +83,29 @@ export default function Profiles() {
         return;
       }
 
-      const adminMap = new Map(adminsData?.map(a => [a.id, a.level as AdminLevel]) || []);
+      const adminMap = new Map(
+        adminsData?.map(a => [
+          a.id,
+          {
+            level: a.level as AdminLevel,
+            last_seen_at: a.last_seen_at as string | null,
+            is_online: a.is_online as boolean | null,
+          },
+        ]) || []
+      );
       const customerIds = new Set(customersData?.map(c => c.id) || []);
 
-      const combinedProfiles: Profile[] = (profilesData || []).map(p => ({
-        ...p,
-        is_admin: adminMap.has(p.id),
-        is_customer: customerIds.has(p.id),
-        admin_level: adminMap.get(p.id) || null,
-      }));
+      const combinedProfiles: Profile[] = (profilesData || []).map(p => {
+        const adminData = adminMap.get(p.id);
+        return {
+          ...p,
+          is_admin: !!adminData,
+          is_customer: customerIds.has(p.id),
+          admin_level: adminData?.level || null,
+          last_seen_at: adminData?.last_seen_at || null,
+          is_online: adminData?.is_online || null,
+        };
+      });
 
       setProfiles(combinedProfiles);
     });
@@ -239,6 +256,37 @@ export default function Profiles() {
     return <Badge variant="outline">User</Badge>;
   };
 
+  // Get presence indicator for admin status column
+  const getPresenceIndicator = (profile: Profile) => {
+    if (!profile.is_admin) return null;
+
+    if (profile.is_online) {
+      return (
+        <div className="flex items-center gap-1.5 text-green-600">
+          <Circle className="h-2.5 w-2.5 fill-current" />
+          <span className="text-xs font-medium">Online</span>
+        </div>
+      );
+    }
+
+    if (profile.last_seen_at) {
+      return (
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <Circle className="h-2.5 w-2.5 fill-current opacity-50" />
+          <span className="text-xs">Last seen {formatRelativeTime(profile.last_seen_at)}</span>
+        </div>
+      );
+    }
+
+    // Never seen (null last_seen_at)
+    return (
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        <Circle className="h-2.5 w-2.5 fill-current opacity-50" />
+        <span className="text-xs">Never seen</span>
+      </div>
+    );
+  };
+
   const filtered = profiles.filter(p => 
     p.full_name.toLowerCase().includes(search.toLowerCase()) ||
     p.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -279,6 +327,11 @@ export default function Profiles() {
                       <div>
                         <CardTitle className="text-sm font-medium">{profile.full_name}</CardTitle>
                         <div className="mt-1">{getRoleBadge(profile)}</div>
+                        {profile.is_admin && (
+                          <div className="mt-1.5">
+                            {getPresenceIndicator(profile)}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
