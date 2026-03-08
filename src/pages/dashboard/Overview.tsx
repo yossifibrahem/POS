@@ -2,13 +2,12 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdminPresence } from "@/hooks/useAdminPresence";
 import { canSeeCostAndProfit } from "@/lib/permissions";
 import { useCartRealtime, useInventoryRealtime } from "@/hooks/useRealtimeSubscription";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Package, Users, ShoppingCart, DollarSign, XCircle,TrendingUp,ChevronLeft,ChevronRight,Calendar,Tags, Circle} from "lucide-react";
+import { Package, Users, ShoppingCart, DollarSign, XCircle,TrendingUp,ChevronLeft,ChevronRight,Calendar,Tags} from "lucide-react";
 import { formatCurrency, formatRelativeTime } from "@/lib/formatters";
 import { StatCardSkeleton } from "@/components/LoadingGrid";
 import { CartDetailModal } from "@/components/CartDetailModal";
@@ -36,13 +35,6 @@ interface DailyStats {
   sales: number;
   revenue: number;
   profit: number;
-}
-
-interface OnlineAdmin {
-  id: string;
-  full_name: string;
-  level: string;
-  last_seen_at: string;
 }
 
 function formatDateForDisplay(date: Date): string {
@@ -86,7 +78,6 @@ function getDateRange(date: Date): { start: string; end: string } {
 export default function Overview() {
   const navigate = useNavigate();
   const { adminLevel, user } = useAuth();
-  const { lastPingedAt } = useAdminPresence();
   const isLowLevelAdmin = adminLevel === 'low';
   const [loadingDaily, setLoadingDaily] = useState(true);
   const [loadingStatic, setLoadingStatic] = useState(true);
@@ -97,8 +88,6 @@ export default function Overview() {
   const [outOfStock, setOutOfStock] = useState<Product[]>([]);
   const [selectedCartId, setSelectedCartId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [onlineAdmins, setOnlineAdmins] = useState<OnlineAdmin[]>([]);
-  const [loadingOnlineAdmins, setLoadingOnlineAdmins] = useState(false);
 
   const fetchDailyData = useCallback(async (date: Date) => {
     setLoadingDaily(true);
@@ -237,38 +226,6 @@ export default function Overview() {
     }
   }, [fetchStaticData, isLowLevelAdmin]);
 
-  // Fetch online admins - triggered by lastPingedAt from useAdminPresence
-  const fetchOnlineAdmins = useCallback(async () => {
-    // Only fetch for med/high level admins (not low-level)
-    if (isLowLevelAdmin) {
-      setOnlineAdmins([]);
-      return;
-    }
-
-    setLoadingOnlineAdmins(true);
-    try {
-      const { data, error } = await supabase.rpc("get_online_admins");
-      
-      if (error) {
-        console.warn("Failed to fetch online admins:", error.message);
-        setOnlineAdmins([]);
-        return;
-      }
-
-      setOnlineAdmins((data as OnlineAdmin[]) || []);
-    } catch (err) {
-      console.warn("Error fetching online admins:", err);
-      setOnlineAdmins([]);
-    } finally {
-      setLoadingOnlineAdmins(false);
-    }
-  }, [isLowLevelAdmin]);
-
-  // Fetch online admins when lastPingedAt changes (triggered by heartbeat)
-  useEffect(() => {
-    fetchOnlineAdmins();
-  }, [lastPingedAt, fetchOnlineAdmins]);
-
   const handlePreviousDay = () => {
     const prev = new Date(selectedDate);
     prev.setDate(prev.getDate() - 1);
@@ -400,57 +357,6 @@ export default function Overview() {
           )}
         </div>
       </section>
-      )}
-
-      {/* Who's Online Widget - Only show for med/high level admins */}
-      {!isLowLevelAdmin && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-muted rounded-lg">
-              <Circle className="h-5 w-5 text-green-600 fill-current" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Who's Online</h2>
-              <p className="text-sm text-muted-foreground">Active admins in the last 5 minutes</p>
-            </div>
-            {onlineAdmins.length > 0 && (
-              <Badge variant="default" className="ml-auto bg-green-600 hover:bg-green-700">
-                {onlineAdmins.length} online
-              </Badge>
-            )}
-          </div>
-
-          <Card>
-            <CardContent className="pt-6">
-              {loadingOnlineAdmins ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="h-4 w-4 bg-muted rounded-full animate-pulse" />
-                  <span className="text-sm">Loading...</span>
-                </div>
-              ) : onlineAdmins.length === 0 ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Circle className="h-3 w-3 fill-current opacity-50" />
-                  <span className="text-sm">No admins currently online</span>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {onlineAdmins.map((admin) => (
-                    <div
-                      key={admin.id}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-full"
-                    >
-                      <Circle className="h-2.5 w-2.5 fill-current text-green-600" />
-                      <span className="text-sm font-medium">{admin.full_name}</span>
-                      <Badge variant="outline" className="text-xs ml-1">
-                        {admin.level}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </section>
       )}
 
       {/* Daily Updated Section */}
