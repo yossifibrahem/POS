@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,6 +40,8 @@ export default function Profiles() {
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
+  const [filterRole, setFilterRole] = useState<string>("all");
+  const [filterOnlineOnly, setFilterOnlineOnly] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editLevelId, setEditLevelId] = useState<string | null>(null);
@@ -287,11 +290,24 @@ export default function Profiles() {
     );
   };
 
-  const filtered = profiles.filter(p => 
-    p.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    p.email.toLowerCase().includes(search.toLowerCase()) ||
-    (p.phone && p.phone.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = profiles.filter(p => {
+    // Search filter
+    const matchesSearch = 
+      p.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      p.email.toLowerCase().includes(search.toLowerCase()) ||
+      (p.phone && p.phone.toLowerCase().includes(search.toLowerCase()));
+    
+    // Role filter
+    let matchesRole = true;
+    if (filterRole === "admin") matchesRole = p.is_admin;
+    else if (filterRole === "customer") matchesRole = p.is_customer;
+    else if (filterRole === "user") matchesRole = !p.is_admin && !p.is_customer;
+    
+    // Online filter (only applies to admins)
+    const matchesOnline = !filterOnlineOnly || (p.is_admin && p.is_online);
+    
+    return matchesSearch && matchesRole && matchesOnline;
+  });
 
   return (
     <div className="p-4 md:p-6">
@@ -305,6 +321,30 @@ export default function Profiles() {
             value={search} 
             onChange={(e) => setSearch(e.target.value)} 
           />
+        </div>
+      </div>
+
+      {/* Filters row */}
+      <div className="sticky top-[96px] z-10 bg-background py-2">
+        <div className="grid grid-cols-[1fr_auto] gap-3">
+          <Select value={filterRole} onValueChange={setFilterRole}>
+            <SelectTrigger>
+              <SelectValue placeholder="All Roles" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="customer">Customer</SelectItem>
+              <SelectItem value="user">User</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Online only</span>
+            <Switch
+              checked={filterOnlineOnly}
+              onCheckedChange={setFilterOnlineOnly}
+            />
+          </div>
         </div>
       </div>
 
