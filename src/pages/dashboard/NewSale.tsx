@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Search, Plus, Minus, X, ShoppingCart } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
@@ -66,6 +67,7 @@ export default function NewSale() {
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
   const [sort, setSort] = useState<SortOptions>({ field: "name", direction: "asc" });
+  const [hideOutOfStock, setHideOutOfStock] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerId, setCustomerId] = useState("walk-in");
   const [customerSearch, setCustomerSearch] = useState("");
@@ -215,7 +217,7 @@ export default function NewSale() {
   };
 
   const filteredProducts = sortProducts(
-    filterProducts(products, search, filterCat),
+    filterProducts(products, search, filterCat).filter((p) => !hideOutOfStock || p.stock > 0),
     sort
   );
   const filteredCustomers = filterCustomers(customers, customerSearch);
@@ -252,7 +254,7 @@ export default function NewSale() {
 
       {/* Filters row */}
       <div className="sticky top-[96px] z-10 bg-background py-2">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Select value={filterCat} onValueChange={setFilterCat}>
             <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
             <SelectContent>
@@ -277,6 +279,13 @@ export default function NewSale() {
               <SelectItem value="stock-desc">Stock (High-Low)</SelectItem>
             </SelectContent>
           </Select>
+          <div className="flex items-center justify-end gap-2 col-span-2 sm:col-span-1 sm:col-start-3">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Hide out of stock</span>
+            <Switch
+              checked={hideOutOfStock}
+              onCheckedChange={setHideOutOfStock}
+            />
+          </div>
         </div>
       </div>
 
