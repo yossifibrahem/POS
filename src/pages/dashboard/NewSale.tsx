@@ -277,6 +277,8 @@ export default function NewSale() {
               <SelectItem value="price-desc">Price (High-Low)</SelectItem>
               <SelectItem value="stock-asc">Stock (Low-High)</SelectItem>
               <SelectItem value="stock-desc">Stock (High-Low)</SelectItem>
+              <SelectItem value="created_at-desc">Newest First</SelectItem>
+              <SelectItem value="created_at-asc">Oldest First</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex items-center justify-end gap-2 col-span-2 sm:col-span-1 sm:col-start-3">
