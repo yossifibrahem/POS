@@ -1,73 +1,159 @@
-# Welcome to your Lovable project
+# MHG Store
 
-## Project info
+A modern point-of-sale (POS) and inventory management system built with React, TypeScript, and Supabase.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- **Authentication** - Secure login and registration with session persistence
+- **Role-Based Access Control** - Three admin levels (low, med, high) with granular permissions
+- **Dashboard Overview** - Real-time daily stats including sales, revenue, and profit
+- **Product Management** - Create, update, and delete products with categories and custom attributes
+- **Category Management** - Organize products with categories and dynamic attributes (text, number, boolean, enum)
+- **Point of Sale** - Interactive cart system with quantity management, price overrides, and discount support
+- **Sales History** - Track all transactions with date filtering and admin attribution
+- **Refund System** - Full and partial refunds with automatic stock restoration
+- **Real-Time Updates** - Live data synchronization via Supabase Realtime subscriptions
+- **Responsive Design** - Mobile-first UI built with Tailwind CSS and shadcn/ui components
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Frontend:** React 18, TypeScript, Vite
+- **UI Components:** shadcn/ui, Radix UI, Tailwind CSS
+- **Backend:** Supabase (PostgreSQL, Auth, Realtime)
+- **State Management:** React Query (TanStack Query)
+- **Routing:** React Router DOM v6
+- **Forms:** React Hook Form with Zod validation
+- **Charts:** Recharts
+- **Deployment:** Vercel
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js 18+ or Bun
+- Supabase account and project
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+# Clone the repository
+git clone <repository-url>
+cd storefront-hub
 
-Follow these steps:
+# Install dependencies
+npm install
+# or
+bun install
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Set up environment variables
+cp .env.example .env
 ```
 
-**Edit a file directly in GitHub**
+### Environment Variables
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Create a `.env` file with your Supabase credentials:
 
-**Use GitHub Codespaces**
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Development
 
-## What technologies are used for this project?
+```bash
+# Start the development server
+npm run dev
+# or
+bun run dev
+```
 
-This project is built with:
+The app will be available at `http://localhost:8080`
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Build
 
-## How can I deploy this project?
+```bash
+# Production build
+npm run build
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+# Development build
+npm run build:dev
 
-## Can I connect a custom domain to my Lovable project?
+# Preview the build
+npm run preview
+```
 
-Yes, you can!
+### Testing
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```bash
+# Run tests
+npm run test
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+# Run tests in watch mode
+npm run test:watch
+```
+
+### Linting
+
+```bash
+npm run lint
+```
+
+## Project Structure
+
+```
+src/
+├── components/          # Reusable UI components
+│   ├── ui/             # shadcn/ui base components
+│   ├── CartDetailModal.tsx
+│   ├── DashboardLayout.tsx
+│   ├── ProductDetailModal.tsx
+│   └── ProtectedRoute.tsx
+├── hooks/              # Custom React hooks
+│   ├── useAuth.tsx     # Authentication context
+│   ├── useAdminCheck.ts
+│   └── useRealtimeSubscription.ts
+├── integrations/       # External service integrations
+│   └── supabase/       # Supabase client and types
+├── lib/                # Utility functions
+│   ├── api.ts          # API helpers
+│   ├── filters.ts      # Data filtering/sorting
+│   ├── formatters.ts   # Currency, date formatting
+│   └── permissions.ts  # Role-based permission checks
+├── pages/              # Route components
+│   ├── dashboard/      # Dashboard pages
+│   │   ├── Overview.tsx
+│   │   ├── Products.tsx
+│   │   ├── Categories.tsx
+│   │   ├── NewSale.tsx
+│   │   ├── SalesHistory.tsx
+│   │   └── Profiles.tsx
+│   ├── Login.tsx
+│   └── Register.tsx
+├── types/              # TypeScript type definitions
+└── App.tsx             # Main app with routing
+supabase/
+├── config.toml         # Supabase configuration
+└── migrations/         # Database migrations
+```
+
+## Admin Roles & Permissions
+
+| Feature                  | Low Level | Med Level | High Level |
+| ------------------------ | --------- | --------- | ---------- |
+| View Dashboard           | ✅        | ✅        | ✅         |
+| View Own Sales           | ✅        | ✅        | ✅         |
+| View Cost & Profit       | ❌        | ✅        | ✅         |
+| Manage Products          | ❌        | ✅        | ✅         |
+| Manage Categories        | ❌        | ✅        | ✅         |
+| View All Sales History   | ❌        | ✅        | ✅         |
+| Process Refunds          | ❌        | ✅        | ✅         |
+| Manage User Profiles     | ❌        | ✅        | ✅         |
+| Full Admin Access        | ❌        | ❌        | ✅         |
+
+## Deployment
+
+The app is configured for deployment on Vercel with SPA routing support via `vercel.json`.
+
+## License
+
+Private - All rights reserved.

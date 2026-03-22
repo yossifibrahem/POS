@@ -31,7 +31,6 @@ export function useRealtime<T = Record<string, unknown>>({
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
-
   useEffect(() => {
     if (!enabled) return;
 
