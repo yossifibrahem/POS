@@ -79,7 +79,7 @@ export function useInventoryRealtime({ onChange }: { onChange: ChangeHandler }) 
 
 /**
  * Hook to subscribe to customer-related real-time updates.
- * Subscribes to: customers table
+ * Subscribes to: profiles table
  * 
  * @param onChange - Callback to refresh customer data when changes occur
  * 
@@ -89,9 +89,9 @@ export function useInventoryRealtime({ onChange }: { onChange: ChangeHandler }) 
  * });
  */
 export function useCustomerRealtime({ onChange }: { onChange: ChangeHandler }) {
-  // Subscribe to customers table - triggers refresh when customers are registered/deleted
+  // Every profile is a customer, so profile changes refresh customer selectors.
   useRealtime({
-    table: 'customers',
+    table: 'profiles',
     onChange,
     enabled: true,
   });
@@ -126,7 +126,7 @@ export function useProductRealtime<T = Record<string, unknown>>({
 
 /**
  * Hook to subscribe to profile-related real-time updates.
- * Subscribes to: profiles, admins, customers tables
+ * Subscribes to: profiles and admins tables
  * 
  * @param onChange - Callback to refresh profile data when changes occur
  * 
@@ -153,12 +153,4 @@ export function useProfileRealtime({ onChange }: { onChange: ChangeHandler }) {
     onChange: handleChange,
     enabled: true,
   });
-
-  // Subscribe to customers table - triggers refresh when customer status changes
-  useRealtime({
-    table: 'customers',
-    onChange: handleChange,
-    enabled: true,
-  });
 }
-

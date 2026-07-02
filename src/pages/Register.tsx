@@ -26,7 +26,14 @@ export default function Register() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: window.location.origin },
+      options: {
+        emailRedirectTo: window.location.origin,
+        data: {
+          full_name: fullName.trim(),
+          display_name: fullName.trim(),
+          phone: phone.trim() || null,
+        },
+      },
     });
 
     if (error) {
@@ -36,19 +43,7 @@ export default function Register() {
     }
 
     if (data.user) {
-      // Insert into profiles (single source of truth for identity)
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: data.user.id,
-        full_name: fullName,
-        email,
-        phone: phone || null,
-      });
-
-      if (profileError) {
-        toast.error("Account created but profile failed: " + profileError.message);
-      } else {
-        toast.success("Account created! Please check your email to verify.");
-      }
+      toast.success("Account created! Please check your email to verify.");
     }
 
     navigate("/login");

@@ -55,7 +55,8 @@ interface Profile {
 interface Customer {
   id: string;
   created_at: string;
-  profiles: Profile | null;
+  full_name: string;
+  email: string;
 }
 
 export default function NewSale() {
@@ -80,7 +81,7 @@ export default function NewSale() {
   useEffect(() => {
     Promise.all([
       supabase.from("products").select("*, categories(name)").order("name"),
-      supabase.from("customers").select("*, profiles(full_name, email)").order("profiles(full_name)"),
+      supabase.from("profiles").select("id, created_at, full_name, email").order("full_name"),
       supabase.from("categories").select("*"),
     ]).then(([productsRes, customersRes, categoriesRes]) => {
       setProducts((productsRes.data || []) as Product[]);
@@ -102,7 +103,7 @@ export default function NewSale() {
   }, []);
 
   const refreshCustomers = useCallback(async () => {
-    const { data } = await supabase.from("customers").select("*, profiles(full_name, email)").order("profiles(full_name)");
+    const { data } = await supabase.from("profiles").select("id, created_at, full_name, email").order("full_name");
     setCustomers(data || []);
   }, []);
 
@@ -361,7 +362,7 @@ export default function NewSale() {
                 <SelectContent>
                   <SelectItem value="walk-in">Walk-in Customer</SelectItem>
                   {filteredCustomers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.profiles?.full_name || "Unknown"} ({c.profiles?.email || "—"})</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>{c.full_name || "Unknown"} ({c.email || "—"})</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

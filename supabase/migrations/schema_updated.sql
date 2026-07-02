@@ -23,8 +23,8 @@
 --     personally created (processed_by = auth.uid()).
 --
 -- Refund model: immutable refund ledger (refunds + refund_items)
--- Identity model: shared `profiles` table — customers and admins both reference
---                 it, so id / full_name / email / phone are never duplicated.
+-- Identity model: shared `profiles` table — every profile is a customer; admins
+--                 are extra capability rows that reference profiles.
 -- =============================================================================
 
 
@@ -102,16 +102,6 @@ CREATE TABLE public.profiles (
 );
 
 -- ---------------------------------------------------------------------------
--- Customers (role table — references profiles)
--- A row here means the user has the "customer" role.
--- Identity data lives in profiles; no duplication.
--- ---------------------------------------------------------------------------
-CREATE TABLE public.customers (
-  id         UUID                     NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-);
-
--- ---------------------------------------------------------------------------
 -- Admins (role table — references profiles)
 -- A row here means the user has the "admin" role.
 -- Identity data lives in profiles; no duplication.
@@ -149,7 +139,7 @@ COMMENT ON COLUMN public.admins.last_seen_at IS
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.carts (
   id           UUID                     NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  customer_id  UUID                     REFERENCES public.customers(id) ON DELETE SET NULL,
+  customer_id  UUID                     REFERENCES public.profiles(id) ON DELETE SET NULL,
   processed_by UUID                     REFERENCES public.admins(id) ON DELETE SET NULL,
   status       TEXT                     NOT NULL DEFAULT 'pending'
                                           CHECK (status IN ('pending', 'completed', 'cancelled')),
@@ -400,6 +390,59 @@ CREATE TRIGGER trg_sold_products_updated_at
 
 
 -- =============================================================================
+-- TRIGGER FUNCTION: auth user provisioning
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  profile_full_name TEXT;
+  profile_email TEXT;
+  profile_phone TEXT;
+BEGIN
+  profile_full_name := COALESCE(
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''),
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'display_name'), ''),
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'name'), ''),
+    NULLIF(TRIM(NEW.email), ''),
+    'New User'
+  );
+
+  profile_email := COALESCE(
+    NULLIF(TRIM(NEW.email), ''),
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'email'), ''),
+    NEW.id::TEXT
+  );
+
+  profile_phone := NULLIF(TRIM(COALESCE(
+    NEW.raw_user_meta_data->>'phone',
+    NEW.raw_user_meta_data->>'phone_number',
+    ''
+  )), '');
+
+  INSERT INTO public.profiles (id, full_name, email, phone)
+  VALUES (NEW.id, profile_full_name, profile_email, profile_phone)
+  ON CONFLICT (id) DO UPDATE
+  SET full_name = EXCLUDED.full_name,
+      email = EXCLUDED.email,
+      phone = COALESCE(public.profiles.phone, EXCLUDED.phone);
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_auth_users_create_profile ON auth.users;
+
+CREATE TRIGGER trg_auth_users_create_profile
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
+
+
+-- =============================================================================
 -- TRIGGER FUNCTION: stock management (driven by cart status transitions)
 --
 --   pending   → completed : DEDUCT stock for all sold_products line items
@@ -588,8 +631,7 @@ SELECT c.id,
        crs.net_amount,
        crs.refund_status
   FROM public.carts              c
-  LEFT JOIN public.customers     cu  ON cu.id  = c.customer_id
-  LEFT JOIN public.profiles      cp  ON cp.id  = cu.id
+  LEFT JOIN public.profiles      cp  ON cp.id  = c.customer_id
   LEFT JOIN public.admins        a   ON a.id   = c.processed_by
   LEFT JOIN public.profiles      ap  ON ap.id  = a.id
   LEFT JOIN public.cart_refund_status crs ON crs.cart_id = c.id;
@@ -682,7 +724,6 @@ ALTER TABLE public.categories          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.category_attributes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customers           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admins              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.carts               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sold_products       ENABLE ROW LEVEL SECURITY;
@@ -786,26 +827,6 @@ CREATE POLICY "profiles_update"
   TO authenticated
   USING  (id = auth.uid() OR public.is_admin_high(auth.uid()))
   WITH CHECK (id = auth.uid() OR public.is_admin_high(auth.uid()));
-
-
--- ---------------------------------------------------------------------------
--- Customers: users see own row; all admins see all
---            only high admins can delete customer rows
--- ---------------------------------------------------------------------------
-CREATE POLICY "customers_select"
-  ON public.customers FOR SELECT
-  TO authenticated
-  USING (id = auth.uid() OR public.is_admin(auth.uid()));
-
-CREATE POLICY "customers_insert"
-  ON public.customers FOR INSERT
-  TO authenticated
-  WITH CHECK (id = auth.uid() OR public.is_admin(auth.uid()));
-
-CREATE POLICY "customers_delete"
-  ON public.customers FOR DELETE
-  TO authenticated
-  USING (public.is_admin_high(auth.uid()));
 
 
 -- ---------------------------------------------------------------------------

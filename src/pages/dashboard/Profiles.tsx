@@ -28,7 +28,6 @@ interface Profile {
   created_at: string;
   updated_at: string;
   is_admin: boolean;
-  is_customer: boolean;
   admin_level: AdminLevel;
   // Admin presence fields from admin_profiles view
   last_seen_at: string | null;
@@ -76,16 +75,6 @@ export default function Profiles() {
         return;
       }
 
-      // Fetch all customers to determine customer status
-      const { data: customersData, error: customersError } = await supabase
-        .from("customers")
-        .select("id");
-
-      if (customersError) {
-        handleError(customersError, "Failed to load customer data");
-        return;
-      }
-
       const adminMap = new Map(
         adminsData?.map(a => [
           a.id,
@@ -96,14 +85,12 @@ export default function Profiles() {
           },
         ]) || []
       );
-      const customerIds = new Set(customersData?.map(c => c.id) || []);
 
       const combinedProfiles: Profile[] = (profilesData || []).map(p => {
         const adminData = adminMap.get(p.id);
         return {
           ...p,
           is_admin: !!adminData,
-          is_customer: customerIds.has(p.id),
           admin_level: adminData?.level || null,
           last_seen_at: adminData?.last_seen_at || null,
           is_online: adminData?.is_online || null,
@@ -116,7 +103,7 @@ export default function Profiles() {
 
   useEffect(() => { load(); }, []);
 
-  // Subscribe to real-time updates for profile, admin, and customer changes
+  // Subscribe to real-time updates for profile and admin changes
   useProfileRealtime({
     onChange: load,
   });
@@ -253,10 +240,7 @@ export default function Profiles() {
       const levelLabel = profile.admin_level ? ` · ${profile.admin_level.charAt(0).toUpperCase() + profile.admin_level.slice(1)}` : '';
       return <Badge variant="default" className="bg-primary"><Shield className="h-3 w-3 mr-1" /> Admin{levelLabel}</Badge>;
     }
-    if (profile.is_customer) {
-      return <Badge variant="secondary"><User className="h-3 w-3 mr-1" /> Customer</Badge>;
-    }
-    return <Badge variant="outline">User</Badge>;
+    return <Badge variant="secondary"><User className="h-3 w-3 mr-1" /> Customer</Badge>;
   };
 
   // Get presence indicator for admin status column
@@ -300,8 +284,7 @@ export default function Profiles() {
     // Role filter
     let matchesRole = true;
     if (filterRole === "admin") matchesRole = p.is_admin;
-    else if (filterRole === "customer") matchesRole = p.is_customer;
-    else if (filterRole === "user") matchesRole = !p.is_admin && !p.is_customer;
+    else if (filterRole === "customer") matchesRole = !p.is_admin;
     
     // Online filter (only applies to admins)
     const matchesOnline = !filterOnlineOnly || (p.is_admin && p.is_online);
@@ -335,7 +318,6 @@ export default function Profiles() {
               <SelectItem value="all">All Roles</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="customer">Customer</SelectItem>
-              <SelectItem value="user">User</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex items-center justify-end gap-2">

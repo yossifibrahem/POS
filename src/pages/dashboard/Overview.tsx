@@ -198,7 +198,7 @@ export default function Overview() {
       const [productsRes, categoriesRes, customersRes, outOfStockRes] = await Promise.all([
         supabase.from("products").select("id", { count: "exact", head: true }),
         supabase.from("categories").select("id", { count: "exact", head: true }),
-        supabase.from("customers").select("id", { count: "exact", head: true }),
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("products").select("*").eq("stock", 0).order("name", { ascending: true }),
       ]);
 
@@ -596,4 +596,3 @@ export default function Overview() {
     </div>
   );
 }
-

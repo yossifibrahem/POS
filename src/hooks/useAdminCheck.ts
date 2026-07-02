@@ -17,16 +17,20 @@ export function useAdminCheck() {
 
   const checkAdminAndNavigate = useCallback(async (userId: string): Promise<AdminCheckResult> => {
     try {
-      const { data: adminCheck } = await supabase.rpc("is_admin", { _user_id: userId });
+      const { data: adminCheck, error: adminError } = await supabase.rpc("is_admin", { _user_id: userId });
+      if (adminError) throw adminError;
+
       const isUserAdmin = !!adminCheck;
       
       let level: AdminLevel = null;
       if (isUserAdmin) {
-        const { data: levelData } = await supabase.rpc("get_admin_level", { _user_id: userId });
+        const { data: levelData, error: levelError } = await supabase.rpc("get_admin_level", { _user_id: userId });
+        if (levelError) throw levelError;
+
         level = (levelData as AdminLevel) || null;
         navigate("/dashboard");
       } else {
-        navigate("/login");
+        navigate("/purchase-history");
       }
       
       return { isAdmin: isUserAdmin, adminLevel: level };
