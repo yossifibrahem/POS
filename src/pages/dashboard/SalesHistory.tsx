@@ -24,6 +24,7 @@ import { withLoading, handleError, handleSuccess } from "@/lib/api";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { filterCartsByProduct } from "@/lib/filters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
+import { refundCart } from "@/lib/pos/services";
 
 interface Cart {
   id: string;
@@ -147,62 +148,7 @@ export default function SalesHistory() {
     if (!deleteCartId) return;
     setProcessing(true);
     try {
-      // Step 1: Get all line items for this cart to calculate remaining refund quantities
-      const { data: lineItems, error: fetchError } = await supabase
-        .from("cart_line_items")
-        .select("sold_product_id, sold_quantity, refunded_quantity, unit_price")
-        .eq("cart_id", deleteCartId);
-      
-      if (fetchError) throw fetchError;
-
-      if (!lineItems || lineItems.length === 0) {
-        throw new Error("No products found in cart");
-      }
-
-      // Calculate remaining quantity to refund for each item
-      const itemsToRefund = lineItems.map(item => ({
-        sold_product_id: item.sold_product_id,
-        remaining_quantity: item.sold_quantity - (item.refunded_quantity || 0),
-        unit_price: item.unit_price
-      })).filter(item => item.remaining_quantity > 0);
-
-      if (itemsToRefund.length === 0) {
-        throw new Error("All items have already been fully refunded");
-      }
-
-      // Calculate total refund amount (only for remaining quantities)
-      const refundAmount = itemsToRefund.reduce((sum, item) => 
-        sum + (item.remaining_quantity * item.unit_price), 0
-      );
-
-      // Step 2: Insert into refunds table
-      const { data: refundData, error: refundError } = await supabase
-        .from("refunds")
-        .insert({
-          cart_id: deleteCartId,
-          refund_amount: refundAmount,
-          processed_by: user?.id
-        })
-        .select()
-        .single();
-      
-      if (refundError) throw refundError;
-      if (!refundData) throw new Error("Failed to create refund record");
-
-      // Step 3: Insert into refund_items for each remaining quantity
-      const refundItems = itemsToRefund.map(item => ({
-        refund_id: refundData.id,
-        sold_product_id: item.sold_product_id,
-        quantity: item.remaining_quantity,
-        unit_price: item.unit_price
-      }));
-
-      const { error: itemsError } = await supabase
-        .from("refund_items")
-        .insert(refundItems);
-      
-      if (itemsError) throw itemsError;
-
+      await refundCart({ cartId: deleteCartId, processedBy: user?.id });
       handleSuccess("Cart refunded successfully. Stock has been restored.");
       setDeleteCartId(null);
       load(); // Refresh the list

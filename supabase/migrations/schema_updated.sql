@@ -1,7 +1,19 @@
 -- =============================================================================
--- COMPLETE DATABASE SCHEMA (v5)
+-- COMPLETE DATABASE SCHEMA (v6)
 -- Includes: admin level hierarchy (high / med / low)
 --           admin presence tracking (last_seen_at / is_online)
+--           app-managed POS business side effects
+--
+-- v6 changes vs v5:
+--   • POS workflow side effects moved to application code:
+--       - sale total calculation
+--       - product stock deduction on completed sales
+--       - product stock restoration on refunds
+--       - product attribute cleanup when category is removed
+--   • The old business trigger functions and triggers are no longer part of
+--     this complete schema.
+--   • RLS/auth helper functions, presence RPCs, updated_at triggers, auth
+--     profile provisioning, and reporting views remain database-managed.
 --
 -- v5 changes vs v4:
 --   • admins.last_seen_at (TIMESTAMPTZ, nullable): records the most recent
@@ -181,7 +193,7 @@ CREATE TABLE public.refunds (
 -- ---------------------------------------------------------------------------
 -- Refund Items
 -- Line-level breakdown of what was returned in each refund event.
--- The trigger on INSERT handles restocking.
+-- Application code restores product stock after inserting refund_items.
 -- ---------------------------------------------------------------------------
 CREATE TABLE public.refund_items (
   id              UUID    NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -440,133 +452,6 @@ DROP TRIGGER IF EXISTS trg_auth_users_create_profile ON auth.users;
 CREATE TRIGGER trg_auth_users_create_profile
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
-
-
--- =============================================================================
--- TRIGGER FUNCTION: stock management (driven by cart status transitions)
---
---   pending   → completed : DEDUCT stock for all sold_products line items
---   pending   → cancelled : DELETE sold_products (stock was never deducted)
---   completed → cancelled : BLOCKED — insert a refund record instead
--- =============================================================================
-
-CREATE OR REPLACE FUNCTION public.manage_stock_on_cart_status_change()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF OLD.status = NEW.status THEN
-    RETURN NEW;
-  END IF;
-
-  IF OLD.status = 'completed' AND NEW.status = 'cancelled' THEN
-    RAISE EXCEPTION
-      'Cannot cancel a completed cart. Insert a refund record instead.';
-  END IF;
-
-  IF OLD.status = 'pending' AND NEW.status = 'completed' THEN
-    UPDATE public.products p
-       SET stock = stock - sp.quantity
-      FROM public.sold_products sp
-     WHERE sp.cart_id    = NEW.id
-       AND sp.product_id = p.id;
-
-  ELSIF OLD.status = 'pending' AND NEW.status = 'cancelled' THEN
-    DELETE FROM public.sold_products WHERE cart_id = NEW.id;
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER trg_manage_stock_on_cart_status_change
-  AFTER UPDATE OF status ON public.carts
-  FOR EACH ROW EXECUTE FUNCTION public.manage_stock_on_cart_status_change();
-
-
--- =============================================================================
--- TRIGGER FUNCTION: restock on refund_items INSERT
--- =============================================================================
-
-CREATE OR REPLACE FUNCTION public.restock_on_refund_item()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  UPDATE public.products p
-     SET stock = stock + NEW.quantity
-    FROM public.sold_products sp
-   WHERE sp.id         = NEW.sold_product_id
-     AND sp.product_id = p.id;
-
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER trg_restock_on_refund_item
-  AFTER INSERT ON public.refund_items
-  FOR EACH ROW EXECUTE FUNCTION public.restock_on_refund_item();
-
-
--- =============================================================================
--- TRIGGER FUNCTION: cart total recalculation
--- =============================================================================
-
-CREATE OR REPLACE FUNCTION public.recalculate_cart_total()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_cart_id UUID;
-BEGIN
-  v_cart_id := CASE TG_OP WHEN 'DELETE' THEN OLD.cart_id ELSE NEW.cart_id END;
-
-  UPDATE public.carts
-     SET total = COALESCE((
-           SELECT SUM(quantity * unit_price)
-             FROM public.sold_products
-            WHERE cart_id = v_cart_id
-         ), 0)
-   WHERE id = v_cart_id;
-
-  RETURN NULL;
-END;
-$$;
-
-CREATE TRIGGER trg_recalculate_cart_total
-  AFTER INSERT OR UPDATE OR DELETE ON public.sold_products
-  FOR EACH ROW EXECUTE FUNCTION public.recalculate_cart_total();
-
-
--- =============================================================================
--- TRIGGER FUNCTION: clear product attributes when category is removed
--- =============================================================================
-
-CREATE OR REPLACE FUNCTION public.clear_product_attributes_on_category_delete()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF OLD.category_id IS NOT NULL AND NEW.category_id IS NULL THEN
-    NEW.attributes = '{}'::JSONB;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER trg_clear_product_attributes_on_category_delete
-  BEFORE UPDATE ON public.products
-  FOR EACH ROW
-  WHEN (OLD.category_id IS DISTINCT FROM NEW.category_id)
-  EXECUTE FUNCTION public.clear_product_attributes_on_category_delete();
 
 
 -- =============================================================================

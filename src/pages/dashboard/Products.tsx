@@ -24,6 +24,7 @@ import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import type { CategoryAttribute, AttributeType } from "@/types/category";
 import { parseOptions } from "@/lib/attributes";
+import { sanitizeProductPayload } from "@/lib/pos/services";
 
 interface Product {
   id: string;
@@ -220,14 +221,14 @@ export default function Products() {
     
     setSaving(true);
 
-    const payload = {
+    const payload = sanitizeProductPayload({
       name: form.name.trim(),
       price: Number(form.price) || 0,
       cost: canSeeCostAndProfit(adminLevel) ? Number(form.cost) || 0 : 0,
       stock: parseInt(form.stock) || 0,
       category_id: form.category_id || null,
       attributes: productAttributes,
-    };
+    });
 
     if (editing) {
       const { error } = await supabase.from("products").update(payload).eq("id", editing.id);

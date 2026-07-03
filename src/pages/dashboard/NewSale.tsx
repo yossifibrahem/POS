@@ -19,6 +19,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { filterProducts, filterCustomers, sortProducts, SortOptions } from "@/lib/filters";
 import { LoadingGrid } from "@/components/LoadingGrid";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
+import { processSale as processSaleService } from "@/lib/pos/services";
 
 interface Product {
   id: string;
@@ -160,60 +161,31 @@ export default function NewSale() {
     setProcessing(true);
 
     try {
-      // Create cart — stock is deducted when status transitions to 'completed'
       const customerIdForSale = customerId === "walk-in" ? null : customerId;
-      const { data: cartData, error: cartError } = await supabase.from("carts").insert({
-        customer_id: customerIdForSale,
-        processed_by: user.id,
+      const result = await processSaleService({
+        customerId: customerIdForSale,
+        processedBy: user.id,
         notes: notes || null,
-        status: "pending",
-      }).select().single();
+        items: cart.map((i) => ({
+          productId: i.product.id,
+          stock: i.product.stock,
+          quantity: i.quantity,
+          unitPrice: i.unit_price,
+        })),
+      });
 
-      if (cartError) throw cartError;
-
-      // Insert sold products (immutable record - no status needed)
-      const soldItems = cart.map((i) => ({
-        cart_id: cartData.id,
-        product_id: i.product.id,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-      }));
-
-      const { error: soldError } = await supabase.from("sold_products").insert(soldItems);
-      if (soldError) throw soldError;
-
-      // Complete the cart - DB trigger will deduct stock here
-      // If insufficient stock, the DB will throw a CHECK constraint violation
-      const { error: completeError } = await supabase
-        .from("carts")
-        .update({ status: "completed" })
-        .eq("id", cartData.id);
-
-      if (completeError) {
-        // Cancel the pending cart to avoid orphaned records
-        await supabase.from("carts").update({ status: "cancelled" }).eq("id", cartData.id);
-        throw new Error(
-          completeError.message?.includes("stock")
-            ? "Insufficient stock for one or more items."
-            : "Failed to complete sale. Please try again."
-        );
-      }
-
-      // Fetch updated cart total from database (calculated by trigger)
-      const { data: updatedCart } = await supabase.from("carts").select("total").eq("id", cartData.id).single();
-
-      toast.success(`Sale completed! Total: ${formatCurrency(Number(updatedCart?.total || 0))}`);
+      toast.success(`Sale completed! Total: ${formatCurrency(result.total)}`);
       setCart([]);
       setCustomerId("walk-in");
       setNotes("");
       setCartOpen(false);
+      await refreshProducts();
 
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : "Failed to process sale";
       toast.error(errorMessage);
     } finally {
       setProcessing(false);
-      // Products will be updated via realtime subscription
     }
   };
 

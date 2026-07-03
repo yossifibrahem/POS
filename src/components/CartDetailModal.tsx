@@ -13,6 +13,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/formatters";
 import { canSeeCostAndProfit } from "@/lib/permissions";
+import { refundLineItem } from "@/lib/pos/services";
 
 type CartRow = { 
   id: string; total: number; created_at: string; notes?: string | null;
@@ -87,17 +88,16 @@ export function CartDetailModal({ cartId, open, onOpenChange, onRefund }: CartDe
     if (qty < 1 || newRefunded > item.sold_quantity) return;
     setReturningId(item.sold_product_id);
     try {
-      const refundAmount = qty * item.unit_price;
-      const { data: refundData, error: refundError } = await supabase.from("refunds").insert({
-        cart_id: cartId, refund_amount: refundAmount, processed_by: user?.id
-      }).select().single();
-      if (refundError) throw refundError;
-      if (!refundData) throw new Error("Failed to create refund record");
-
-      const { error: itemError } = await supabase.from("refund_items").insert({
-        refund_id: refundData.id, sold_product_id: item.sold_product_id, quantity: qty, unit_price: item.unit_price
+      await refundLineItem({
+        cartId: cartId!,
+        processedBy: user?.id,
+        soldProductId: item.sold_product_id,
+        productId: item.product_id,
+        soldQuantity: item.sold_quantity,
+        refundedQuantity: item.refunded_quantity || 0,
+        quantity: qty,
+        unitPrice: item.unit_price,
       });
-      if (itemError) throw itemError;
 
       if (onRefund) onRefund();
       setReturnQty(prev => { const next = { ...prev }; delete next[item.sold_product_id]; return next; });
