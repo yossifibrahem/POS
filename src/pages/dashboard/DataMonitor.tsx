@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Columns3, Database, Download, Filter, RefreshCw, Search } from "lucide-react";
 import { formatDateTime } from "@/lib/formatters";
 
-type TableRow = Record<string, unknown>;
+type ViewRow = Record<string, unknown>;
 
 type MonitorColumn = {
   key: string;
@@ -21,7 +21,7 @@ type MonitorColumn = {
   defaultHidden?: boolean;
 };
 
-type MonitorTable = {
+type MonitorView = {
   name: string;
   label: string;
   description: string;
@@ -33,7 +33,7 @@ type MonitorTable = {
 };
 
 type QueryResult = {
-  data: TableRow[] | null;
+  data: ViewRow[] | null;
   count: number | null;
   error: { message: string } | null;
 };
@@ -47,46 +47,12 @@ type ReadOnlyQuery = {
 };
 
 type ReadOnlyClient = {
-  from: (table: string) => ReadOnlyQuery;
+  from: (view: string) => ReadOnlyQuery;
 };
 
 const ROW_LIMIT_OPTIONS = [50, 100, 250, 500, 1000];
 
-const monitorTables: MonitorTable[] = [
-  {
-    name: "organizations",
-    label: "Organizations",
-    description: "Organization profile and contact settings",
-    columns: [
-      { key: "id", label: "ID", defaultHidden: true },
-      { key: "name", label: "Name" },
-      { key: "currency_code", label: "Currency" },
-      { key: "contact_email", label: "Contact email" },
-      { key: "phone", label: "Phone" },
-      { key: "address", label: "Address" },
-      { key: "created_at", label: "Created" },
-      { key: "updated_at", label: "Updated" },
-    ],
-    organizationIdColumn: "id",
-    orderBy: "created_at",
-  },
-  {
-    name: "branches",
-    label: "Branches",
-    description: "Locations connected to the organization",
-    columns: [
-      { key: "id", label: "ID", defaultHidden: true },
-      { key: "organization_id", label: "Organization ID", defaultHidden: true },
-      { key: "name", label: "Name" },
-      { key: "is_active", label: "Active" },
-      { key: "phone", label: "Phone" },
-      { key: "address", label: "Address" },
-      { key: "created_at", label: "Created" },
-      { key: "updated_at", label: "Updated" },
-    ],
-    organizationColumn: "organization_id",
-    orderBy: "name",
-  },
+const monitorViews: MonitorView[] = [
   {
     name: "admin_profiles",
     label: "Admin Profiles",
@@ -108,75 +74,6 @@ const monitorTables: MonitorTable[] = [
     organizationColumn: "organization_id",
     branchColumn: "branch_id",
     orderBy: "full_name",
-  },
-  {
-    name: "profiles",
-    label: "Profiles",
-    description: "Customer and user profile records",
-    columns: [
-      { key: "id", label: "ID", defaultHidden: true },
-      { key: "organization_id", label: "Organization ID", defaultHidden: true },
-      { key: "full_name", label: "Name" },
-      { key: "email", label: "Email" },
-      { key: "phone", label: "Phone" },
-      { key: "created_at", label: "Created" },
-      { key: "updated_at", label: "Updated" },
-    ],
-    organizationColumn: "organization_id",
-    orderBy: "created_at",
-  },
-  {
-    name: "categories",
-    label: "Categories",
-    description: "Product category catalog",
-    columns: [
-      { key: "id", label: "ID", defaultHidden: true },
-      { key: "organization_id", label: "Organization ID", defaultHidden: true },
-      { key: "name", label: "Name" },
-      { key: "created_at", label: "Created" },
-      { key: "updated_at", label: "Updated" },
-    ],
-    organizationColumn: "organization_id",
-    orderBy: "name",
-  },
-  {
-    name: "category_attributes",
-    label: "Category Attributes",
-    description: "Dynamic fields configured for categories",
-    columns: [
-      { key: "id", label: "ID", defaultHidden: true },
-      { key: "category_id", label: "Category ID" },
-      { key: "name", label: "Name" },
-      { key: "label", label: "Label" },
-      { key: "attribute_type", label: "Type" },
-      { key: "unit", label: "Unit" },
-      { key: "is_required", label: "Required" },
-      { key: "display_order", label: "Order" },
-      { key: "options", label: "Options", defaultHidden: true },
-      { key: "created_at", label: "Created" },
-      { key: "updated_at", label: "Updated" },
-    ],
-    orderBy: "display_order",
-  },
-  {
-    name: "products",
-    label: "Products",
-    description: "Base product catalog and pricing",
-    columns: [
-      { key: "id", label: "ID", defaultHidden: true },
-      { key: "organization_id", label: "Organization ID", defaultHidden: true },
-      { key: "category_id", label: "Category ID" },
-      { key: "name", label: "Name" },
-      { key: "price", label: "Price" },
-      { key: "cost", label: "Cost" },
-      { key: "stock", label: "Base stock" },
-      { key: "is_active", label: "Active" },
-      { key: "attributes", label: "Attributes", defaultHidden: true },
-      { key: "created_at", label: "Created" },
-      { key: "updated_at", label: "Updated" },
-    ],
-    organizationColumn: "organization_id",
-    orderBy: "created_at",
   },
   {
     name: "products_with_branch_stock",
@@ -202,20 +99,6 @@ const monitorTables: MonitorTable[] = [
     orderBy: "created_at",
   },
   {
-    name: "branch_product_inventory",
-    label: "Branch Inventory",
-    description: "Stock counts by branch and product",
-    columns: [
-      { key: "branch_id", label: "Branch ID" },
-      { key: "product_id", label: "Product ID" },
-      { key: "stock", label: "Stock" },
-      { key: "created_at", label: "Created" },
-      { key: "updated_at", label: "Updated" },
-    ],
-    branchColumn: "branch_id",
-    orderBy: "updated_at",
-  },
-  {
     name: "cart_summary",
     label: "Cart Summary",
     description: "Sales, customers, processors, and refund status",
@@ -238,6 +121,19 @@ const monitorTables: MonitorTable[] = [
     ],
     branchColumn: "branch_id",
     orderBy: "created_at",
+  },
+  {
+    name: "cart_refund_status",
+    label: "Cart Refund Status",
+    description: "Refund totals and net amounts per cart",
+    columns: [
+      { key: "cart_id", label: "Cart ID", defaultHidden: true },
+      { key: "sale_total", label: "Sale total" },
+      { key: "refunded_amount", label: "Refunded" },
+      { key: "net_amount", label: "Net" },
+      { key: "refund_status", label: "Refund status" },
+    ],
+    orderBy: "cart_id",
   },
   {
     name: "cart_line_items",
@@ -282,69 +178,10 @@ const monitorTables: MonitorTable[] = [
     branchColumn: "branch_id",
     orderBy: "refunded_at",
   },
-  {
-    name: "carts",
-    label: "Raw Carts",
-    description: "Cart records before summary joins",
-    columns: [
-      { key: "id", label: "ID", defaultHidden: true },
-      { key: "branch_id", label: "Branch ID", defaultHidden: true },
-      { key: "customer_id", label: "Customer ID", defaultHidden: true },
-      { key: "processed_by", label: "Processed by ID", defaultHidden: true },
-      { key: "status", label: "Status" },
-      { key: "total", label: "Total" },
-      { key: "notes", label: "Notes" },
-      { key: "created_at", label: "Created" },
-      { key: "updated_at", label: "Updated" },
-    ],
-    branchColumn: "branch_id",
-    orderBy: "created_at",
-  },
-  {
-    name: "sold_products",
-    label: "Sold Products",
-    description: "Raw sale line records",
-    columns: [
-      { key: "id", label: "ID", defaultHidden: true },
-      { key: "cart_id", label: "Cart ID" },
-      { key: "product_id", label: "Product ID" },
-      { key: "quantity", label: "Quantity" },
-      { key: "unit_price", label: "Unit price" },
-      { key: "created_at", label: "Created" },
-      { key: "updated_at", label: "Updated" },
-    ],
-    orderBy: "created_at",
-  },
-  {
-    name: "refunds",
-    label: "Refunds",
-    description: "Raw refund headers",
-    columns: [
-      { key: "id", label: "ID", defaultHidden: true },
-      { key: "cart_id", label: "Cart ID" },
-      { key: "processed_by", label: "Processed by ID" },
-      { key: "refund_amount", label: "Amount" },
-      { key: "created_at", label: "Created" },
-    ],
-    orderBy: "created_at",
-  },
-  {
-    name: "refund_items",
-    label: "Refund Items",
-    description: "Raw refund line records",
-    columns: [
-      { key: "id", label: "ID", defaultHidden: true },
-      { key: "refund_id", label: "Refund ID" },
-      { key: "sold_product_id", label: "Sold product ID" },
-      { key: "quantity", label: "Quantity" },
-      { key: "unit_price", label: "Unit price" },
-    ],
-    orderBy: "id",
-  },
 ];
 
-function defaultVisibleColumns(table: MonitorTable) {
-  return table.columns.filter((column) => !column.defaultHidden).map((column) => column.key);
+function defaultVisibleColumns(view: MonitorView) {
+  return view.columns.filter((column) => !column.defaultHidden).map((column) => column.key);
 }
 
 function stringifyCell(value: unknown): string {
@@ -368,7 +205,7 @@ function toCsvValue(value: unknown) {
   return `"${stringValue.replace(/"/g, '""')}"`;
 }
 
-function downloadCsv(filename: string, rows: TableRow[], columns: MonitorColumn[]) {
+function downloadCsv(filename: string, rows: ViewRow[], columns: MonitorColumn[]) {
   const header = columns.map((column) => toCsvValue(column.label)).join(",");
   const body = rows
     .map((row) => columns.map((column) => toCsvValue(row[column.key])).join(","))
@@ -387,8 +224,8 @@ function downloadCsv(filename: string, rows: TableRow[], columns: MonitorColumn[
 
 export default function DataMonitor() {
   const { organization, branches } = useAuth();
-  const [tableName, setTableName] = useState(monitorTables[0].name);
-  const [rows, setRows] = useState<TableRow[]>([]);
+  const [viewName, setViewName] = useState(monitorViews[0].name);
+  const [rows, setRows] = useState<ViewRow[]>([]);
   const [rowCount, setRowCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -396,24 +233,24 @@ export default function DataMonitor() {
   const [filterValue, setFilterValue] = useState("");
   const [branchScope, setBranchScope] = useState("all");
   const [rowLimit, setRowLimit] = useState(250);
-  const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>(() => defaultVisibleColumns(monitorTables[0]));
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>(() => defaultVisibleColumns(monitorViews[0]));
 
-  const activeTable = useMemo(
-    () => monitorTables.find((table) => table.name === tableName) || monitorTables[0],
-    [tableName],
+  const activeView = useMemo(
+    () => monitorViews.find((view) => view.name === viewName) || monitorViews[0],
+    [viewName],
   );
 
   useEffect(() => {
-    setVisibleColumnKeys(defaultVisibleColumns(activeTable));
+    setVisibleColumnKeys(defaultVisibleColumns(activeView));
     setFilterColumn("all");
     setFilterValue("");
     setSearch("");
     setBranchScope("all");
-  }, [activeTable]);
+  }, [activeView]);
 
   const visibleColumns = useMemo(
-    () => activeTable.columns.filter((column) => visibleColumnKeys.includes(column.key)),
-    [activeTable, visibleColumnKeys],
+    () => activeView.columns.filter((column) => visibleColumnKeys.includes(column.key)),
+    [activeView, visibleColumnKeys],
   );
 
   const loadRows = useCallback(async () => {
@@ -426,27 +263,27 @@ export default function DataMonitor() {
 
     setLoading(true);
     const client = supabase as unknown as ReadOnlyClient;
-    let query = client.from(activeTable.name).select("*", { count: "exact" });
+    let query = client.from(activeView.name).select("*", { count: "exact" });
 
-    if (activeTable.organizationColumn) {
-      query = query.eq(activeTable.organizationColumn, organization.id);
+    if (activeView.organizationColumn) {
+      query = query.eq(activeView.organizationColumn, organization.id);
     }
 
-    if (activeTable.organizationIdColumn) {
-      query = query.eq(activeTable.organizationIdColumn, organization.id);
+    if (activeView.organizationIdColumn) {
+      query = query.eq(activeView.organizationIdColumn, organization.id);
     }
 
-    if (activeTable.branchColumn) {
+    if (activeView.branchColumn) {
       if (branchScope !== "all") {
-        query = query.eq(activeTable.branchColumn, branchScope);
-      } else if (!activeTable.organizationColumn && !activeTable.organizationIdColumn && branches.length > 0) {
-        query = query.in(activeTable.branchColumn, branches.map((branch) => branch.id));
+        query = query.eq(activeView.branchColumn, branchScope);
+      } else if (!activeView.organizationColumn && !activeView.organizationIdColumn && branches.length > 0) {
+        query = query.in(activeView.branchColumn, branches.map((branch) => branch.id));
       }
     }
 
-    if (activeTable.orderBy) {
-      query = query.order(activeTable.orderBy, {
-        ascending: activeTable.orderBy === "name" || activeTable.orderBy === "full_name" || activeTable.orderBy === "display_order",
+    if (activeView.orderBy) {
+      query = query.order(activeView.orderBy, {
+        ascending: activeView.orderBy === "full_name",
       });
     }
 
@@ -454,7 +291,7 @@ export default function DataMonitor() {
     setLoading(false);
 
     if (error) {
-      toast.error(`Failed to load ${activeTable.label}: ${error.message}`);
+      toast.error(`Failed to load ${activeView.label}: ${error.message}`);
       setRows([]);
       setRowCount(0);
       return;
@@ -462,7 +299,7 @@ export default function DataMonitor() {
 
     setRows(data || []);
     setRowCount(count);
-  }, [activeTable, branchScope, branches, organization, rowLimit]);
+  }, [activeView, branchScope, branches, organization, rowLimit]);
 
   useEffect(() => {
     loadRows();
@@ -474,7 +311,7 @@ export default function DataMonitor() {
 
     return rows.filter((row) => {
       if (normalizedSearch) {
-        const rowMatches = activeTable.columns.some((column) =>
+        const rowMatches = activeView.columns.some((column) =>
           stringifyCell(row[column.key]).toLowerCase().includes(normalizedSearch),
         );
         if (!rowMatches) return false;
@@ -486,7 +323,7 @@ export default function DataMonitor() {
 
       return true;
     });
-  }, [activeTable.columns, filterColumn, filterValue, rows, search]);
+  }, [activeView.columns, filterColumn, filterValue, rows, search]);
 
   const handleColumnToggle = (columnKey: string, checked: boolean) => {
     setVisibleColumnKeys((current) => {
@@ -503,7 +340,7 @@ export default function DataMonitor() {
     }
 
     const date = new Date().toISOString().slice(0, 10);
-    downloadCsv(`${activeTable.name}-${date}.csv`, filteredRows, visibleColumns);
+    downloadCsv(`${activeView.name}-${date}.csv`, filteredRows, visibleColumns);
   };
 
   if (!organization) {
@@ -514,14 +351,14 @@ export default function DataMonitor() {
     <div className="p-4 md:p-6">
       <div className="sticky top-[48px] z-10 space-y-3 border-b bg-background pb-3 pt-2">
         <div className="grid gap-3 lg:grid-cols-[minmax(220px,320px)_1fr_auto]">
-          <Select value={tableName} onValueChange={setTableName}>
+          <Select value={viewName} onValueChange={setViewName}>
             <SelectTrigger>
-              <SelectValue placeholder="Select table" />
+              <SelectValue placeholder="Select view" />
             </SelectTrigger>
             <SelectContent>
-              {monitorTables.map((table) => (
-                <SelectItem key={table.name} value={table.name}>
-                  {table.label}
+              {monitorViews.map((view) => (
+                <SelectItem key={view.name} value={view.name}>
+                  {view.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -557,7 +394,7 @@ export default function DataMonitor() {
                   <SheetTitle>Columns</SheetTitle>
                 </SheetHeader>
                 <div className="mt-6 space-y-3">
-                  {activeTable.columns.map((column) => (
+                  {activeView.columns.map((column) => (
                     <div key={column.key} className="flex items-center gap-3">
                       <Checkbox
                         id={`column-${column.key}`}
@@ -583,7 +420,7 @@ export default function DataMonitor() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">No column filter</SelectItem>
-              {activeTable.columns.map((column) => (
+              {activeView.columns.map((column) => (
                 <SelectItem key={column.key} value={column.key}>
                   {column.label}
                 </SelectItem>
@@ -596,7 +433,7 @@ export default function DataMonitor() {
             onChange={(event) => setFilterValue(event.target.value)}
             disabled={filterColumn === "all"}
           />
-          <Select value={branchScope} onValueChange={setBranchScope} disabled={!activeTable.branchColumn}>
+          <Select value={branchScope} onValueChange={setBranchScope} disabled={!activeView.branchColumn}>
             <SelectTrigger>
               <SelectValue placeholder="Branch" />
             </SelectTrigger>
@@ -628,10 +465,10 @@ export default function DataMonitor() {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Database className="h-5 w-5 text-muted-foreground" />
-            <h2 className="truncate text-lg font-semibold">{activeTable.label}</h2>
+            <h2 className="truncate text-lg font-semibold">{activeView.label}</h2>
             <Badge variant="outline">Read only</Badge>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">{activeTable.description}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{activeView.description}</p>
         </div>
         <div className="text-sm text-muted-foreground">
           {filteredRows.length} shown{rowCount !== null ? ` of ${rowCount}` : ""}
@@ -663,7 +500,7 @@ export default function DataMonitor() {
                 ))
               ) : filteredRows.length > 0 ? (
                 filteredRows.map((row, rowIndex) => (
-                  <tr key={String(row.id ?? `${activeTable.name}-${rowIndex}`)} className="border-t hover:bg-muted/40">
+                  <tr key={String(row.id ?? `${activeView.name}-${rowIndex}`)} className="border-t hover:bg-muted/40">
                     {visibleColumns.map((column) => (
                       <td key={column.key} className="max-w-[280px] px-4 py-3 align-top">
                         <span className="block truncate" title={stringifyCell(row[column.key])}>
