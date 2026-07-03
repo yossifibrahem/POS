@@ -19,8 +19,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useSidebar } from "@/components/ui/sidebar-context";
-import { Building2, LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut, User, Settings } from "lucide-react";
-import { canAccessDashboard, canAccessOwnOverview } from "@/lib/permissions";
+import { Building2, LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut, User, Settings, Database } from "lucide-react";
+import { canAccessDashboard, canAccessOwnOverview, canMonitorData } from "@/lib/permissions";
 import { useEffect, useRef, useState, useCallback } from "react";
 
 const SWIPE_THRESHOLD = 50;    // min horizontal distance (px) to trigger
@@ -33,6 +33,7 @@ const allNavItems = [
   { title: "New Sale", url: "/dashboard/sales", icon: ShoppingCart },
   { title: "Sales History", url: "/dashboard/sales/history", icon: History },
   { title: "Profiles", url: "/dashboard/profiles", icon: Users },
+  { title: "Data Monitor", url: "/dashboard/data", icon: Database },
   { title: "Settings", url: "/dashboard/settings", icon: Settings },
 ];
 
@@ -56,7 +57,11 @@ function DashboardContent() {
     : canAccessOwnOverview(adminLevel)
       ? allNavItems.filter(item => item.title === "Overview" || item.title === "New Sale" || item.title === "Sales History")
       : allNavItems.filter(item => item.title === "New Sale" || item.title === "Sales History");
-  const visibleNavItems = navItems.filter((item) => item.title !== "Settings" || adminLevel === "high");
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.title === "Settings") return adminLevel === "high";
+    if (item.title === "Data Monitor") return canMonitorData(adminLevel);
+    return true;
+  });
 
   useEffect(() => {
     const path = location.pathname;

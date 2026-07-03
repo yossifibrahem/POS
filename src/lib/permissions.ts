@@ -21,6 +21,8 @@ export const canManageAdmins = (level: AdminLevel): boolean => level === 'high';
 
 export const canManageSettings = (level: AdminLevel): boolean => level === 'high';
 
+export const canMonitorData = (level: AdminLevel): boolean => level === 'high';
+
 export const canCreateSale = (level: AdminLevel): boolean => isAdmin(level);
 
 export const canAccessDashboard = (level: AdminLevel): boolean => level === 'high' || level === 'med';

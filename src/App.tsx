@@ -16,6 +16,7 @@ import NewSale from "./pages/dashboard/NewSale";
 import SalesHistory from "./pages/dashboard/SalesHistory";
 import Profiles from "./pages/dashboard/Profiles";
 import Settings from "./pages/dashboard/Settings";
+import DataMonitor from "./pages/dashboard/DataMonitor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,9 @@ const App = () => (
               <Route path="sales/history" element={<SalesHistory />} />
               <Route path="profiles" element={
                 <ProtectedRoute requiredLevel="med"><Profiles /></ProtectedRoute>
+              } />
+              <Route path="data" element={
+                <ProtectedRoute requiredLevel="high"><DataMonitor /></ProtectedRoute>
               } />
               <Route path="settings" element={
                 <ProtectedRoute requiredLevel="high"><Settings /></ProtectedRoute>
