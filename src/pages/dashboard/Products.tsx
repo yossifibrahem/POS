@@ -25,9 +25,13 @@ import { ProductDetailModal } from "@/components/ProductDetailModal";
 import type { CategoryAttribute, AttributeType } from "@/types/category";
 import { parseOptions } from "@/lib/attributes";
 import { sanitizeProductPayload } from "@/lib/pos/services";
+import type { Database } from "@/integrations/supabase/types";
 
 interface Product {
   id: string;
+  organization_id: string;
+  branch_id: string;
+  branch_name: string;
   name: string;
   price: number;
   cost: number;
@@ -43,8 +47,27 @@ interface Category {
   name: string;
 }
 
+type ProductBranchRow = Database["public"]["Views"]["products_with_branch_stock"]["Row"];
+
+function mapProductRow(product: ProductBranchRow): Product {
+  return {
+    id: product.id || "",
+    organization_id: product.organization_id || "",
+    branch_id: product.branch_id || "",
+    branch_name: product.branch_name || "",
+    name: product.name || "",
+    price: Number(product.price || 0),
+    cost: Number(product.cost || 0),
+    stock: Number(product.stock || 0),
+    category_id: product.category_id,
+    created_at: product.created_at || "",
+    categories: product.category_name ? { name: product.category_name } : null,
+    attributes: parseAttributes(product.attributes || {}),
+  };
+}
+
 export default function Products() {
-  const { adminLevel } = useAuth();
+  const { adminLevel, organization, activeBranchId } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
@@ -66,12 +89,23 @@ export default function Products() {
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
-      const { data } = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
-      setProducts((data || []) as Product[]);
+      if (!activeBranchId) {
+        setProducts([]);
+        setCategories([]);
+        return;
+      }
+
+      const { data } = await supabase
+        .from("products_with_branch_stock")
+        .select("*")
+        .eq("branch_id", activeBranchId)
+        .order("created_at", { ascending: false });
+
+      setProducts((data || []).map(mapProductRow));
       const { data: cats } = await supabase.from("categories").select("*").order("name");
       setCategories(cats || []);
     });
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -86,6 +120,10 @@ export default function Products() {
 
 
   const openCreate = () => {
+    if (!organization || !activeBranchId) {
+      toast.error("An active branch is required");
+      return;
+    }
     setEditing(null);
     setForm({ name: "", price: "", cost: "", stock: "", category_id: "" });
     setCategoryAttributes([]);
@@ -205,6 +243,10 @@ export default function Products() {
   };
 
   const handleSave = async () => {
+    if (!organization || !activeBranchId) {
+      toast.error("An active branch is required");
+      return;
+    }
     if (!validateRequired(form.name, "Name")) return;
     if (!validateNonNegative(
       [Number(form.price), Number(form.cost), Number(form.stock)],
@@ -221,21 +263,45 @@ export default function Products() {
     
     setSaving(true);
 
+    const stock = parseInt(form.stock) || 0;
     const payload = sanitizeProductPayload({
+      organization_id: organization.id,
       name: form.name.trim(),
       price: Number(form.price) || 0,
       cost: canSeeCostAndProfit(adminLevel) ? Number(form.cost) || 0 : 0,
-      stock: parseInt(form.stock) || 0,
       category_id: form.category_id || null,
       attributes: productAttributes,
     });
 
     if (editing) {
       const { error } = await supabase.from("products").update(payload).eq("id", editing.id);
-      if (error) handleError(error); else { handleSuccess("Product updated"); setDialogOpen(false); load(); }
+      if (error) {
+        handleError(error);
+      } else {
+        const { error: stockError } = await supabase
+          .from("branch_product_inventory")
+          .upsert({ branch_id: activeBranchId, product_id: editing.id, stock });
+
+        if (stockError) handleError(stockError);
+        else { handleSuccess("Product updated"); setDialogOpen(false); load(); }
+      }
     } else {
-      const { error } = await supabase.from("products").insert(payload);
-      if (error) handleError(error); else { handleSuccess("Product created"); setDialogOpen(false); load(); }
+      const { data: productData, error } = await supabase
+        .from("products")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (error) {
+        handleError(error);
+      } else {
+        const { error: stockError } = await supabase
+          .from("branch_product_inventory")
+          .upsert({ branch_id: activeBranchId, product_id: productData.id, stock });
+
+        if (stockError) handleError(stockError);
+        else { handleSuccess("Product created"); setDialogOpen(false); load(); }
+      }
     }
     setSaving(false);
   };

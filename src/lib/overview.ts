@@ -40,6 +40,7 @@ export interface StaticStats {
 interface AdminScope {
   isLowLevelAdmin: boolean;
   userId?: string;
+  branchId?: string | null;
 }
 
 export function formatOverviewDate(date: Date): string {
@@ -101,7 +102,7 @@ export async function fetchDailyOverview(date: Date, scope: AdminScope) {
 
   let lineItemsQuery = supabase
     .from("cart_line_items")
-    .select("sold_quantity, refunded_quantity, unit_price, product_cost, carts!inner(created_at, processed_by)")
+    .select("sold_quantity, refunded_quantity, unit_price, product_cost, carts!inner(created_at, processed_by, branch_id)")
     .gte("carts.created_at", start)
     .lte("carts.created_at", end);
 
@@ -119,6 +120,12 @@ export async function fetchDailyOverview(date: Date, scope: AdminScope) {
     cartsQuery = cartsQuery.eq("processed_by", scope.userId);
     lineItemsQuery = lineItemsQuery.eq("carts.processed_by", scope.userId);
     recentQuery = recentQuery.eq("processed_by", scope.userId);
+  }
+
+  if (scope.branchId) {
+    cartsQuery = cartsQuery.eq("branch_id", scope.branchId);
+    lineItemsQuery = lineItemsQuery.eq("carts.branch_id", scope.branchId);
+    recentQuery = recentQuery.eq("branch_id", scope.branchId);
   }
 
   const [cartsRes, lineItemsRes, recentRes] = await Promise.all([
@@ -148,12 +155,20 @@ export async function fetchDailyOverview(date: Date, scope: AdminScope) {
   };
 }
 
-export async function fetchStaticOverview() {
+export async function fetchStaticOverview(branchId?: string | null) {
+  let outOfStockQuery = supabase
+    .from("products_with_branch_stock")
+    .select("id, name, stock")
+    .eq("stock", 0)
+    .order("name", { ascending: true });
+
+  if (branchId) outOfStockQuery = outOfStockQuery.eq("branch_id", branchId);
+
   const [productsRes, categoriesRes, customersRes, outOfStockRes] = await Promise.all([
     supabase.from("products").select("id", { count: "exact", head: true }),
     supabase.from("categories").select("id", { count: "exact", head: true }),
     supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase.from("products").select("id, name, stock").eq("stock", 0).order("name", { ascending: true }),
+    outOfStockQuery,
   ]);
 
   if (productsRes.error) throw productsRes.error;

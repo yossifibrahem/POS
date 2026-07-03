@@ -3,6 +3,7 @@ import { useSignOut } from "@/hooks/useSignOut";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminPresence } from "@/hooks/useAdminPresence";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Sidebar,
   SidebarContent,
@@ -18,7 +19,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useSidebar } from "@/components/ui/sidebar-context";
-import { LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut, User } from "lucide-react";
+import { Building2, LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut, User, Settings } from "lucide-react";
 import { canAccessDashboard, canAccessOwnOverview } from "@/lib/permissions";
 import { useEffect, useRef, useState, useCallback } from "react";
 
@@ -32,10 +33,11 @@ const allNavItems = [
   { title: "New Sale", url: "/dashboard/sales", icon: ShoppingCart },
   { title: "Sales History", url: "/dashboard/sales/history", icon: History },
   { title: "Profiles", url: "/dashboard/profiles", icon: Users },
+  { title: "Settings", url: "/dashboard/settings", icon: Settings },
 ];
 
 function DashboardContent() {
-  const { adminLevel, adminProfile } = useAuth();
+  const { adminLevel, adminProfile, organization, branches, activeBranch, activeBranchId, setActiveBranchId } = useAuth();
   const handleSignOut = useSignOut();
   const location = useLocation();
   const [pageTitle, setPageTitle] = useState("Overview");
@@ -54,6 +56,7 @@ function DashboardContent() {
     : canAccessOwnOverview(adminLevel)
       ? allNavItems.filter(item => item.title === "Overview" || item.title === "New Sale" || item.title === "Sales History")
       : allNavItems.filter(item => item.title === "New Sale" || item.title === "Sales History");
+  const visibleNavItems = navItems.filter((item) => item.title !== "Settings" || adminLevel === "high");
 
   useEffect(() => {
     const path = location.pathname;
@@ -98,7 +101,26 @@ function DashboardContent() {
     >
       <Sidebar>
         <SidebarHeader className="border-b px-4 py-2">
-          <h2 className="text-lg font-bold tracking-tight">MHG Store</h2>
+          <h2 className="text-lg font-bold tracking-tight">{organization?.name || "POS"}</h2>
+          {activeBranch && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <Building2 className="h-4 w-4" />
+              {adminLevel === "high" && branches.length > 1 ? (
+                <Select value={activeBranchId || ""} onValueChange={setActiveBranchId}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="Branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.filter((branch) => branch.is_active).map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <span className="font-medium text-foreground">{activeBranch.name}</span>
+              )}
+            </div>
+          )}
           {adminProfile && (
             <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
               <User className="h-4 w-4" />
@@ -112,7 +134,7 @@ function DashboardContent() {
             <SidebarGroupLabel>Navigation</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {navItems.map((item) => (
+                {visibleNavItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink

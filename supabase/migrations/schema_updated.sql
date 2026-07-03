@@ -1,3 +1,8 @@
+-- NOTE:
+--   This snapshot predates the multi-tenant migration.
+--   Apply 20260703000000_multi_tenant_organizations_branches.sql after this
+--   schema for the current organization/branch model.
+--
 -- =============================================================================
 -- COMPLETE DATABASE SCHEMA (v6)
 -- Includes: admin level hierarchy (high / med / low)

@@ -16,6 +16,7 @@ export interface CategoryAttribute {
 
 export interface Category {
   id: string;
+  organization_id?: string;
   name: string;
   created_at: string;
   product_count?: number;

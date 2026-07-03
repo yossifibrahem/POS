@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useInventoryRealtime } from "@/hooks/useRealtimeSubscription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ import type { Category, CategoryAttribute, AttributeType } from "@/types/categor
 import { parseOptions, getAttributeTypeBadgeClass } from "@/lib/attributes";
 
 export default function Categories() {
+  const { organization } = useAuth();
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -36,6 +38,10 @@ export default function Categories() {
 
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
+      if (!organization) {
+        setCategories([]);
+        return;
+      }
       const { data: cats } = await supabase.from("categories").select("*").order("created_at", { ascending: false });
       if (!cats) return;
       // Get product counts
@@ -44,7 +50,7 @@ export default function Categories() {
       (products || []).forEach((p) => { if (p.category_id) counts[p.category_id] = (counts[p.category_id] || 0) + 1; });
       setCategories(cats.map((c) => ({ ...c, product_count: counts[c.id] || 0 })));
     });
-  }, []);
+  }, [organization]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -163,13 +169,17 @@ export default function Categories() {
   };
 
   const handleSave = async () => {
+    if (!organization) {
+      handleError(new Error("Organization is required"));
+      return;
+    }
     if (!validateRequired(name, "Name")) return;
     setSaving(true);
     if (editing) {
       const { error } = await supabase.from("categories").update({ name: name.trim() }).eq("id", editing.id);
       if (error) handleError(error); else { handleSuccess("Category updated"); setDialogOpen(false); load(); }
     } else {
-      const { error } = await supabase.from("categories").insert({ name: name.trim() });
+      const { error } = await supabase.from("categories").insert({ name: name.trim(), organization_id: organization.id });
       if (error) handleError(error); else { handleSuccess("Category created"); setDialogOpen(false); load(); }
     }
     setSaving(false);

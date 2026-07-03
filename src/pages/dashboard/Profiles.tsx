@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { canManageAdmins } from "@/lib/permissions";
@@ -15,13 +15,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Search, Pencil, Trash2, Shield, ShieldCheck, ShieldX, User, Users, Mail, Phone, Calendar, Sliders, Circle } from "lucide-react";
+import { Search, Pencil, Trash2, Shield, ShieldCheck, ShieldX, User, Mail, Phone, Calendar, Sliders, Circle } from "lucide-react";
 import { withLoading, handleError, handleSuccess } from "@/lib/api";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 import { formatDateTime, formatRelativeTime } from "@/lib/formatters";
 
 interface Profile {
   id: string;
+  organization_id: string;
   full_name: string;
   email: string;
   phone: string | null;
@@ -29,13 +30,15 @@ interface Profile {
   updated_at: string;
   is_admin: boolean;
   admin_level: AdminLevel;
+  branch_id: string | null;
+  branch_name: string | null;
   // Admin presence fields from admin_profiles view
   last_seen_at: string | null;
   is_online: boolean | null;
 }
 
 export default function Profiles() {
-  const { adminLevel: currentAdminLevel } = useAuth();
+  const { adminLevel: currentAdminLevel, organization, branches } = useAuth();
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
@@ -46,13 +49,14 @@ export default function Profiles() {
   const [editLevelId, setEditLevelId] = useState<string | null>(null);
   const [editLevelName, setEditLevelName] = useState("");
   const [editLevel, setEditLevel] = useState<AdminLevel>('low');
+  const [editBranchId, setEditBranchId] = useState<string>("");
   const [revokeAdminId, setRevokeAdminId] = useState<string | null>(null);
   const [revokeAdminName, setRevokeAdminName] = useState("");
   const [editing, setEditing] = useState<Profile | null>(null);
   const [form, setForm] = useState({ full_name: "", email: "", phone: "" });
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
       // Fetch all profiles
       const { data: profilesData, error: profilesError } = await supabase
@@ -68,7 +72,7 @@ export default function Profiles() {
       // Fetch all admins with presence info from admin_profiles view
       const { data: adminsData, error: adminsError } = await supabase
         .from("admin_profiles")
-        .select("id, level, last_seen_at, is_online");
+        .select("id, level, branch_id, branch_name, last_seen_at, is_online");
 
       if (adminsError) {
         handleError(adminsError, "Failed to load admin data");
@@ -80,6 +84,8 @@ export default function Profiles() {
           a.id,
           {
             level: a.level as AdminLevel,
+            branch_id: a.branch_id as string | null,
+            branch_name: a.branch_name as string | null,
             last_seen_at: a.last_seen_at as string | null,
             is_online: a.is_online as boolean | null,
           },
@@ -90,8 +96,11 @@ export default function Profiles() {
         const adminData = adminMap.get(p.id);
         return {
           ...p,
+          organization_id: p.organization_id || organization?.id || "",
           is_admin: !!adminData,
           admin_level: adminData?.level || null,
+          branch_id: adminData?.branch_id || null,
+          branch_name: adminData?.branch_name || null,
           last_seen_at: adminData?.last_seen_at || null,
           is_online: adminData?.is_online || null,
         };
@@ -99,9 +108,9 @@ export default function Profiles() {
 
       setProfiles(combinedProfiles);
     });
-  };
+  }, [organization?.id]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   // Subscribe to real-time updates for profile and admin changes
   useProfileRealtime({
@@ -170,10 +179,23 @@ export default function Profiles() {
 
   const handlePromoteToAdmin = async () => {
     if (!editLevelId) return;
+    if (!organization) {
+      toast.error("Organization is required");
+      return;
+    }
+    if (editLevel !== 'high' && !editBranchId) {
+      toast.error("Branch assignment is required for medium and low admins");
+      return;
+    }
 
     const { error } = await supabase
       .from("admins")
-      .insert({ id: editLevelId, level: editLevel });
+      .insert({
+        id: editLevelId,
+        level: editLevel,
+        organization_id: organization.id,
+        branch_id: editLevel === 'high' ? null : editBranchId,
+      });
 
     if (error) {
       handleError(error, "Failed to grant admin privileges");
@@ -203,10 +225,22 @@ export default function Profiles() {
 
   const handleUpdateAdminLevel = async () => {
     if (!editLevelId) return;
+    if (!organization) {
+      toast.error("Organization is required");
+      return;
+    }
+    if (editLevel !== 'high' && !editBranchId) {
+      toast.error("Branch assignment is required for medium and low admins");
+      return;
+    }
 
     const { error } = await supabase
       .from("admins")
-      .update({ level: editLevel })
+      .update({
+        level: editLevel,
+        organization_id: organization.id,
+        branch_id: editLevel === 'high' ? null : editBranchId,
+      })
       .eq("id", editLevelId);
 
     if (error) {
@@ -222,6 +256,7 @@ export default function Profiles() {
     setEditLevelId(profile.id);
     setEditLevelName(profile.full_name);
     setEditLevel(profile.admin_level || 'low');
+    setEditBranchId(profile.branch_id || branches.find((branch) => branch.is_active)?.id || "");
   };
 
   const confirmRevokeAdmin = (profile: Profile) => {
@@ -233,12 +268,14 @@ export default function Profiles() {
     setEditLevelId(profile.id);
     setEditLevelName(profile.full_name);
     setEditLevel(profile.admin_level || 'low');
+    setEditBranchId(profile.branch_id || branches.find((branch) => branch.is_active)?.id || "");
   };
 
   const getRoleBadge = (profile: Profile) => {
     if (profile.is_admin) {
       const levelLabel = profile.admin_level ? ` · ${profile.admin_level.charAt(0).toUpperCase() + profile.admin_level.slice(1)}` : '';
-      return <Badge variant="default" className="bg-primary"><Shield className="h-3 w-3 mr-1" /> Admin{levelLabel}</Badge>;
+      const branchLabel = profile.branch_name ? ` · ${profile.branch_name}` : '';
+      return <Badge variant="default" className="bg-primary"><Shield className="h-3 w-3 mr-1" /> Admin{levelLabel}{branchLabel}</Badge>;
     }
     return <Badge variant="secondary"><User className="h-3 w-3 mr-1" /> Customer</Badge>;
   };
@@ -519,6 +556,21 @@ export default function Profiles() {
             <p className="text-xs text-muted-foreground mt-2">
               Default is Low. Only High admins can change levels.
             </p>
+            {editLevel !== 'high' && (
+              <div className="mt-4">
+                <Label className="mb-2 block">Branch</Label>
+                <Select value={editBranchId} onValueChange={setEditBranchId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select branch..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.filter((branch) => branch.is_active).map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           
           <AlertDialogFooter>
@@ -555,6 +607,21 @@ export default function Profiles() {
                 <SelectItem value="low">Low - Sales Only</SelectItem>
               </SelectContent>
             </Select>
+            {editLevel !== 'high' && (
+              <div className="mt-4">
+                <Label className="mb-2 block">Branch</Label>
+                <Select value={editBranchId} onValueChange={setEditBranchId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select branch..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.filter((branch) => branch.is_active).map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           
           <AlertDialogFooter>

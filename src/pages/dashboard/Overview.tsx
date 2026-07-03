@@ -27,7 +27,7 @@ const EMPTY_STATIC_STATS: StaticStats = { products: 0, categories: 0, customers:
 
 export default function Overview() {
   const navigate = useNavigate();
-  const { adminLevel, user } = useAuth();
+  const { adminLevel, user, activeBranchId } = useAuth();
   const isLowLevelAdmin = adminLevel === "low";
   const [loadingDaily, setLoadingDaily] = useState(true);
   const [loadingStatic, setLoadingStatic] = useState(true);
@@ -42,7 +42,7 @@ export default function Overview() {
   const loadDailyData = useCallback(async (date: Date) => {
     setLoadingDaily(true);
     try {
-      const data = await fetchDailyOverview(date, { isLowLevelAdmin, userId: user?.id });
+      const data = await fetchDailyOverview(date, { isLowLevelAdmin, userId: user?.id, branchId: activeBranchId });
       setDailyStats(data.dailyStats);
       setRecentCarts(data.recentCarts);
     } catch (error) {
@@ -50,12 +50,12 @@ export default function Overview() {
     } finally {
       setLoadingDaily(false);
     }
-  }, [isLowLevelAdmin, user?.id]);
+  }, [isLowLevelAdmin, user?.id, activeBranchId]);
 
   const loadStaticData = useCallback(async () => {
     setLoadingStatic(true);
     try {
-      const data = await fetchStaticOverview();
+      const data = await fetchStaticOverview(activeBranchId);
       setStaticStats(data.staticStats);
       setOutOfStock(data.outOfStock);
     } catch (error) {
@@ -63,7 +63,7 @@ export default function Overview() {
     } finally {
       setLoadingStatic(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => {
     loadDailyData(selectedDate);
@@ -102,7 +102,7 @@ export default function Overview() {
   const staticStatCards = [
     { label: "Products", value: staticStats.products, icon: Package, description: "In inventory", to: "/dashboard/products" },
     { label: "Categories", value: staticStats.categories, icon: Tags, description: "Product groups", to: "/dashboard/categories" },
-    { label: "Customers", value: staticStats.customers, icon: Users, description: "Registered", to: "/dashboard/customers" },
+    { label: "Customers", value: staticStats.customers, icon: Users, description: "Registered", to: "/dashboard/profiles" },
     { label: "Out of Stock", value: outOfStock.length, icon: XCircle, description: "Need restock", to: "/dashboard/products?sort=stock-asc" },
   ];
 

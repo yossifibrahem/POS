@@ -2,7 +2,18 @@ import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
-export type TableName = "products" | "carts" | "sold_products" | "categories" | "refunds" | "refund_items" | "profiles" | "admins";
+export type TableName =
+  | "organizations"
+  | "branches"
+  | "branch_product_inventory"
+  | "products"
+  | "carts"
+  | "sold_products"
+  | "categories"
+  | "refunds"
+  | "refund_items"
+  | "profiles"
+  | "admins";
 export type ChangeEvent = "INSERT" | "UPDATE" | "DELETE";
 
 export interface RealtimePayload<T = Record<string, unknown>> {

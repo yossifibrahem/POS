@@ -80,8 +80,8 @@ export default function Login() {
               {loading ? "Signing in..." : "Sign In"}
             </Button>
             <p className="text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link to="/register" className="text-primary underline">Register</Link>
+              Need a new organization?{" "}
+              <Link to="/register" className="text-primary underline">Create one</Link>
             </p>
           </CardFooter>
         </form>

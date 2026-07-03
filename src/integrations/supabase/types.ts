@@ -16,22 +16,28 @@ export type Database = {
     Tables: {
       admins: {
         Row: {
+          branch_id: string | null
           created_at: string
           id: string
           last_seen_at: string | null
           level: string
+          organization_id: string
         }
         Insert: {
+          branch_id?: string | null
           created_at?: string
           id: string
           last_seen_at?: string | null
           level?: string
+          organization_id: string
         }
         Update: {
+          branch_id?: string | null
           created_at?: string
           id?: string
           last_seen_at?: string | null
           level?: string
+          organization_id?: string
         }
         Relationships: [
           {
@@ -41,10 +47,105 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "admins_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admins_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_product_inventory: {
+        Row: {
+          branch_id: string
+          created_at: string
+          product_id: string
+          stock: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          product_id: string
+          stock?: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          product_id?: string
+          stock?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_product_inventory_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_product_inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branches: {
+        Row: {
+          address: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       carts: {
         Row: {
+          branch_id: string
           created_at: string
           customer_id: string | null
           id: string
@@ -55,6 +156,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id: string
           created_at?: string
           customer_id?: string | null
           id?: string
@@ -65,6 +167,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string
           created_at?: string
           customer_id?: string | null
           id?: string
@@ -75,6 +178,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "carts_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "carts_customer_id_fkey"
             columns: ["customer_id"]
@@ -103,21 +213,32 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          organization_id: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          organization_id: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          organization_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       category_attributes: {
         Row: {
@@ -178,6 +299,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          organization_id: string
           price: number
           stock: number
           updated_at: string
@@ -190,6 +312,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          organization_id: string
           price?: number
           stock?: number
           updated_at?: string
@@ -202,6 +325,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          organization_id?: string
           price?: number
           stock?: number
           updated_at?: string
@@ -214,7 +338,47 @@ export type Database = {
             referencedRelation: "categories"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      organizations: {
+        Row: {
+          address: string | null
+          contact_email: string | null
+          created_at: string
+          currency_code: string
+          id: string
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          contact_email?: string | null
+          created_at?: string
+          currency_code?: string
+          id?: string
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          contact_email?: string | null
+          created_at?: string
+          currency_code?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -222,6 +386,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          organization_id: string
           phone: string | null
           updated_at: string
         }
@@ -230,6 +395,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          organization_id: string
           phone?: string | null
           updated_at?: string
         }
@@ -238,10 +404,19 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          organization_id?: string
           phone?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       refund_items: {
         Row: {
@@ -434,12 +609,16 @@ export type Database = {
       admin_profiles: {
         Row: {
           admin_since: string | null
+          branch_id: string | null
+          branch_name: string | null
           email: string | null
           full_name: string | null
           id: string | null
           is_online: boolean | null
           last_seen_at: string | null
           level: string | null
+          organization_id: string | null
+          organization_name: string | null
           phone: string | null
         }
         Relationships: [
@@ -454,6 +633,7 @@ export type Database = {
       }
       cart_line_items: {
         Row: {
+          branch_id: string | null
           cart_id: string | null
           line_total: number | null
           net_line_total: number | null
@@ -461,6 +641,7 @@ export type Database = {
           product_cost: number | null
           product_id: string | null
           product_name: string | null
+          product_price: number | null
           refunded_quantity: number | null
           sold_product_id: string | null
           sold_quantity: number | null
@@ -502,6 +683,8 @@ export type Database = {
       }
       cart_summary: {
         Row: {
+          branch_id: string | null
+          branch_name: string | null
           created_at: string | null
           customer_email: string | null
           customer_name: string | null
@@ -536,6 +719,7 @@ export type Database = {
       }
       refund_detail: {
         Row: {
+          branch_id: string | null
           cart_id: string | null
           processed_by_level: string | null
           processed_by_name: string | null
@@ -588,9 +772,68 @@ export type Database = {
           },
         ]
       }
+      products_with_branch_stock: {
+        Row: {
+          attributes: Json | null
+          branch_id: string | null
+          branch_name: string | null
+          category_id: string | null
+          category_name: string | null
+          cost: number | null
+          created_at: string | null
+          id: string | null
+          is_active: boolean | null
+          name: string | null
+          organization_id: string | null
+          price: number | null
+          stock: number | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      admin_assignment_is_valid: {
+        Args: {
+          _branch_id: string | null
+          _level: string
+          _organization_id: string
+        }
+        Returns: boolean
+      }
+      branch_product_matches: {
+        Args: { _branch_id: string; _product_id: string }
+        Returns: boolean
+      }
+      can_access_branch: {
+        Args: { _branch_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_access_organization: {
+        Args: { _organization_id: string; _user_id: string }
+        Returns: boolean
+      }
       get_admin_level: { Args: { _user_id: string }; Returns: string }
+      get_admin_branch_id: { Args: { _user_id: string }; Returns: string }
+      get_admin_context: {
+        Args: { _user_id: string }
+        Returns: {
+          branch_id: string | null
+          branch_name: string | null
+          id: string
+          level: string
+          organization_id: string
+          organization_name: string
+        }[]
+      }
+      get_admin_organization_id: {
+        Args: { _user_id: string }
+        Returns: string
+      }
+      get_branch_organization_id: {
+        Args: { _branch_id: string }
+        Returns: string
+      }
       get_online_admins: {
         Args: never
         Returns: {
@@ -604,6 +847,14 @@ export type Database = {
       is_admin_high: { Args: { _user_id: string }; Returns: boolean }
       is_admin_med_or_above: { Args: { _user_id: string }; Returns: boolean }
       ping_admin_presence: { Args: never; Returns: string }
+      product_category_matches: {
+        Args: { _category_id: string | null; _organization_id: string }
+        Returns: boolean
+      }
+      profile_matches_branch: {
+        Args: { _branch_id: string; _profile_id: string | null }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

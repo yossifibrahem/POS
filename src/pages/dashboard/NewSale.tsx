@@ -20,9 +20,13 @@ import { filterProducts, filterCustomers, sortProducts, SortOptions } from "@/li
 import { LoadingGrid } from "@/components/LoadingGrid";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { processSale as processSaleService } from "@/lib/pos/services";
+import type { Database } from "@/integrations/supabase/types";
 
 interface Product {
   id: string;
+  organization_id: string;
+  branch_id: string;
+  branch_name: string;
   name: string;
   price: number;
   cost: number;
@@ -60,8 +64,27 @@ interface Customer {
   email: string;
 }
 
+type ProductBranchRow = Database["public"]["Views"]["products_with_branch_stock"]["Row"];
+
+function mapProductRow(product: ProductBranchRow): Product {
+  return {
+    id: product.id || "",
+    organization_id: product.organization_id || "",
+    branch_id: product.branch_id || "",
+    branch_name: product.branch_name || "",
+    name: product.name || "",
+    price: Number(product.price || 0),
+    cost: Number(product.cost || 0),
+    stock: Number(product.stock || 0),
+    category_id: product.category_id,
+    created_at: product.created_at || "",
+    categories: product.category_name ? { name: product.category_name } : null,
+    attributes: product.attributes || {},
+  };
+}
+
 export default function NewSale() {
-  const { user, adminLevel } = useAuth();
+  const { user, adminLevel, activeBranchId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
@@ -80,23 +103,40 @@ export default function NewSale() {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
+    if (!activeBranchId) {
+      setProducts([]);
+      setCustomers([]);
+      setCategories([]);
+      setLoading(false);
+      return;
+    }
+
     Promise.all([
-      supabase.from("products").select("*, categories(name)").order("name"),
+      supabase.from("products_with_branch_stock").select("*").eq("branch_id", activeBranchId).order("name"),
       supabase.from("profiles").select("id, created_at, full_name, email").order("full_name"),
       supabase.from("categories").select("*"),
     ]).then(([productsRes, customersRes, categoriesRes]) => {
-      setProducts((productsRes.data || []) as Product[]);
+      setProducts((productsRes.data || []).map(mapProductRow));
       setCustomers(customersRes.data || []);
       setCategories(categoriesRes.data || []);
       setLoading(false);
     });
-  }, [user]);
+  }, [user, activeBranchId]);
 
   // Refresh functions for realtime updates
   const refreshProducts = useCallback(async () => {
-    const { data } = await supabase.from("products").select("*, categories(name)").order("name");
-    setProducts((data || []) as Product[]);
-  }, []);
+    if (!activeBranchId) {
+      setProducts([]);
+      return;
+    }
+    const { data } = await supabase
+      .from("products_with_branch_stock")
+      .select("*")
+      .eq("branch_id", activeBranchId)
+      .order("name");
+    setProducts((data || []).map(mapProductRow));
+  }, [activeBranchId]);
 
   const refreshCategories = useCallback(async () => {
     const { data } = await supabase.from("categories").select("*");
@@ -157,6 +197,7 @@ export default function NewSale() {
   const processSale = async () => {
     if (cart.length === 0) { toast.error("Cart is empty"); return; }
     if (!user) return;
+    if (!activeBranchId) { toast.error("An active branch is required"); return; }
 
     setProcessing(true);
 
@@ -165,6 +206,7 @@ export default function NewSale() {
       const result = await processSaleService({
         customerId: customerIdForSale,
         processedBy: user.id,
+        branchId: activeBranchId,
         notes: notes || null,
         items: cart.map((i) => ({
           productId: i.product.id,

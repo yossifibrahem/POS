@@ -14,6 +14,7 @@ export interface SaleItemInput {
 export interface ProcessSaleInput {
   customerId: string | null;
   processedBy: string;
+  branchId: string;
   notes: string | null;
   items: SaleItemInput[];
 }
@@ -40,6 +41,7 @@ export interface ProductPayloadWithCategory {
 }
 
 interface StockChange {
+  branchId: string;
   productId: string;
   beforeStock: number;
   afterStock: number;
@@ -91,6 +93,7 @@ export async function processSale(
       .insert({
         customer_id: input.customerId,
         processed_by: input.processedBy,
+        branch_id: input.branchId,
         notes: input.notes,
         status: "pending",
         total,
@@ -112,7 +115,7 @@ export async function processSale(
     const { error: soldError } = await client.from("sold_products").insert(soldItems);
     if (soldError) throw soldError;
 
-    await applySaleStockDeductions(input.items, appliedStockChanges, client);
+    await applySaleStockDeductions(input.branchId, input.items, appliedStockChanges, client);
 
     const { error: completeError } = await client
       .from("carts")
@@ -217,16 +220,21 @@ function validateSaleInput(items: SaleItemInput[]) {
 }
 
 async function applySaleStockDeductions(
+  branchId: string,
   items: SaleItemInput[],
   appliedStockChanges: StockChange[],
   client: PosClient,
 ) {
   const productIds = [...new Set(items.map((item) => item.productId))];
-  const { data, error } = await client.from("products").select("id, stock").in("id", productIds);
+  const { data, error } = await client
+    .from("branch_product_inventory")
+    .select("product_id, stock")
+    .eq("branch_id", branchId)
+    .in("product_id", productIds);
 
   if (error) throw error;
 
-  const stockByProductId = new Map((data || []).map((product) => [product.id, product.stock]));
+  const stockByProductId = new Map((data || []).map((inventory) => [inventory.product_id, inventory.stock]));
   const quantityByProductId = items.reduce((map, item) => {
     map.set(item.productId, (map.get(item.productId) || 0) + item.quantity);
     return map;
@@ -243,10 +251,14 @@ async function applySaleStockDeductions(
       throw new Error("Insufficient stock for one or more items.");
     }
 
-    const { error: updateError } = await client.from("products").update({ stock: afterStock }).eq("id", productId);
+    const { error: updateError } = await client
+      .from("branch_product_inventory")
+      .update({ stock: afterStock })
+      .eq("branch_id", branchId)
+      .eq("product_id", productId);
     if (updateError) throw updateError;
 
-    appliedStockChanges.push({ productId, beforeStock, afterStock });
+    appliedStockChanges.push({ branchId, productId, beforeStock, afterStock });
   }
 }
 
@@ -287,21 +299,39 @@ async function createRefund(
   const { error: itemError } = await client.from("refund_items").insert(refundItems);
   if (itemError) throw itemError;
 
-  await restoreRefundedStock(input.items, client);
+  const branchId = await getCartBranchId(input.cartId, client);
+  await restoreRefundedStock(branchId, input.items, client);
 
   return { refundId: refundData.id, refundAmount };
 }
 
-async function restoreRefundedStock(items: RefundItemInput[], client: PosClient) {
+async function getCartBranchId(cartId: string, client: PosClient): Promise<string> {
+  const { data, error } = await client
+    .from("carts")
+    .select("branch_id")
+    .eq("id", cartId)
+    .single();
+
+  if (error) throw error;
+  if (!data?.branch_id) throw new Error("Cart branch could not be found.");
+
+  return data.branch_id;
+}
+
+async function restoreRefundedStock(branchId: string, items: RefundItemInput[], client: PosClient) {
   const restockItems = items.filter((item) => !!item.productId);
   if (restockItems.length === 0) return;
 
   const productIds = [...new Set(restockItems.map((item) => item.productId as string))];
-  const { data, error } = await client.from("products").select("id, stock").in("id", productIds);
+  const { data, error } = await client
+    .from("branch_product_inventory")
+    .select("product_id, stock")
+    .eq("branch_id", branchId)
+    .in("product_id", productIds);
 
   if (error) throw error;
 
-  const stockByProductId = new Map((data || []).map((product) => [product.id, product.stock]));
+  const stockByProductId = new Map((data || []).map((inventory) => [inventory.product_id, inventory.stock]));
   const quantityByProductId = restockItems.reduce((map, item) => {
     const productId = item.productId as string;
     map.set(productId, (map.get(productId) || 0) + item.quantity);
@@ -313,9 +343,10 @@ async function restoreRefundedStock(items: RefundItemInput[], client: PosClient)
     if (beforeStock === undefined) continue;
 
     const { error: updateError } = await client
-      .from("products")
+      .from("branch_product_inventory")
       .update({ stock: beforeStock + quantity })
-      .eq("id", productId);
+      .eq("branch_id", branchId)
+      .eq("product_id", productId);
 
     if (updateError) throw updateError;
   }
@@ -323,7 +354,11 @@ async function restoreRefundedStock(items: RefundItemInput[], client: PosClient)
 
 async function restoreAppliedStock(appliedStockChanges: StockChange[], client: PosClient) {
   for (const change of [...appliedStockChanges].reverse()) {
-    await client.from("products").update({ stock: change.beforeStock }).eq("id", change.productId);
+    await client
+      .from("branch_product_inventory")
+      .update({ stock: change.beforeStock })
+      .eq("branch_id", change.branchId)
+      .eq("product_id", change.productId);
   }
 }
 

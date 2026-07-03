@@ -108,6 +108,10 @@ class MockBuilder implements PromiseLike<MockResult> {
       return { data: { id: "cart-1" }, error: null };
     }
 
+    if (this.table === "carts" && this.action === "select") {
+      return { data: { branch_id: "branch-1" }, error: null };
+    }
+
     if (this.table === "carts" && this.action === "update") {
       const payload = this.payload as { status?: string };
       if (payload.status === "completed" && this.db.failComplete) {
@@ -124,13 +128,18 @@ class MockBuilder implements PromiseLike<MockResult> {
       return { data: this.db.cartLineItems, error: null };
     }
 
-    if (this.table === "products" && this.action === "select") {
-      const ids = (this.filters.id || []) as string[];
-      return { data: this.db.products.filter((product) => ids.includes(product.id)), error: null };
+    if (this.table === "branch_product_inventory" && this.action === "select") {
+      const productIds = (this.filters.product_id || []) as string[];
+      return {
+        data: this.db.products
+          .filter((product) => productIds.includes(product.id))
+          .map((product) => ({ product_id: product.id, stock: product.stock })),
+        error: null,
+      };
     }
 
-    if (this.table === "products" && this.action === "update") {
-      const productId = this.filters.id as string;
+    if (this.table === "branch_product_inventory" && this.action === "update") {
+      const productId = this.filters.product_id as string;
       const payload = this.payload as { stock: number };
       this.db.products = this.db.products.map((product) =>
         product.id === productId ? { ...product, stock: payload.stock } : product,
@@ -151,6 +160,7 @@ describe("POS services", () => {
       {
         customerId: null,
         processedBy: "admin-1",
+        branchId: "branch-1",
         notes: null,
         items: [{ productId: "product-1", stock: 5, quantity: 2, unitPrice: 10 }],
       },
@@ -162,11 +172,11 @@ describe("POS services", () => {
     expect(db.calls.map((call) => `${call.table}:${call.action}`)).toEqual([
       "carts:insert",
       "sold_products:insert",
-      "products:select",
-      "products:update",
+      "branch_product_inventory:select",
+      "branch_product_inventory:update",
       "carts:update",
     ]);
-    expect(db.calls[0].payload).toMatchObject({ status: "pending", total: 20 });
+    expect(db.calls[0].payload).toMatchObject({ branch_id: "branch-1", status: "pending", total: 20 });
     expect(db.calls[4].payload).toMatchObject({ status: "completed", total: 20 });
   });
 
@@ -180,6 +190,7 @@ describe("POS services", () => {
         {
           customerId: null,
           processedBy: "admin-1",
+          branchId: "branch-1",
           notes: null,
           items: [{ productId: "product-1", stock: 5, quantity: 2, unitPrice: 10 }],
         },

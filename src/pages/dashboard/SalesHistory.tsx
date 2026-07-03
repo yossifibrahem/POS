@@ -37,6 +37,8 @@ interface Cart {
   customer_email: string | null;
   processed_by: string | null;
   processed_by_name: string | null;
+  branch_id?: string | null;
+  branch_name?: string | null;
   refunded_amount: number | null;
   net_amount: number | null;
   refund_status: string | null;
@@ -46,7 +48,7 @@ interface Cart {
 
 
 export default function SalesHistory() {
-  const { user, adminLevel } = useAuth();
+  const { user, adminLevel, activeBranchId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [carts, setCarts] = useState<Cart[]>([]);
   const [dateFrom, setDateFrom] = useState("");
@@ -63,6 +65,9 @@ export default function SalesHistory() {
   const load = useCallback(async () => {
     await withLoading(setLoading, async () => {
       let query = supabase.from("cart_summary").select("*").order("created_at", { ascending: false });
+      if (activeBranchId) {
+        query = query.eq("branch_id", activeBranchId);
+      }
       if (hideRefunded) {
         query = query.neq("refund_status", "fully_refunded");
       }
@@ -110,7 +115,7 @@ export default function SalesHistory() {
         setCarts([]);
       }
     });
-  }, [dateFrom, dateTo, hideRefunded]);
+  }, [activeBranchId, dateFrom, dateTo, hideRefunded]);
 
   useEffect(() => { load(); }, [load]);
 

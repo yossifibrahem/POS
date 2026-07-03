@@ -69,6 +69,12 @@ export function useInventoryRealtime({ onChange }: { onChange: ChangeHandler }) 
     enabled: true,
   });
 
+  useRealtime({
+    table: 'branch_product_inventory',
+    onChange,
+    enabled: true,
+  });
+
   // Subscribe to categories table - triggers refresh when categories are added/deleted
   useRealtime({
     table: 'categories',
