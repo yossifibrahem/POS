@@ -16,8 +16,8 @@ import {
   SidebarProvider,
   SidebarInset,
   SidebarTrigger,
-  useSidebar,
 } from "@/components/ui/sidebar";
+import { useSidebar } from "@/components/ui/sidebar-context";
 import { LayoutDashboard, Package, Tags, ShoppingCart, History, Users, LogOut, User } from "lucide-react";
 import { canAccessDashboard, canAccessOwnOverview } from "@/lib/permissions";
 import { useEffect, useRef, useState, useCallback } from "react";
