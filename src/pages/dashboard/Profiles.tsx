@@ -66,7 +66,7 @@ async function getFunctionErrorMessage(error: unknown, fallback: string): Promis
 }
 
 export default function Profiles() {
-  const { adminLevel: currentAdminLevel, organization, branches } = useAuth();
+  const { user, adminLevel: currentAdminLevel, organization, branches } = useAuth();
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
@@ -265,8 +265,7 @@ export default function Profiles() {
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    
-    // Note: Deleting from profiles will cascade to auth.users due to FK constraint
+
     const { error } = await supabase
       .from("profiles")
       .delete()
@@ -275,7 +274,7 @@ export default function Profiles() {
     if (error) {
       handleError(error, "Failed to delete profile");
     } else {
-      handleSuccess("Profile deleted successfully");
+      handleSuccess("Profile deleted");
       load();
     }
     setDeleteId(null);
@@ -566,14 +565,16 @@ export default function Profiles() {
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={(e) => { e.stopPropagation(); setDeleteId(profile.id); }}
-                      title="Delete profile"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {canManageAdmins(currentAdminLevel) && profile.id !== user?.id && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={(e) => { e.stopPropagation(); setDeleteId(profile.id); }}
+                        title="Delete profile"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -718,7 +719,7 @@ export default function Profiles() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Profile?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the user account and all associated data. This action cannot be undone.
+              This will permanently delete the profile record and remove any admin privileges. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

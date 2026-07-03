@@ -718,6 +718,11 @@ CREATE POLICY "profiles_update"
   USING  (id = auth.uid() OR public.is_admin_high(auth.uid()))
   WITH CHECK (id = auth.uid() OR public.is_admin_high(auth.uid()));
 
+CREATE POLICY "profiles_delete"
+  ON public.profiles FOR DELETE
+  TO authenticated
+  USING (id <> auth.uid() AND public.is_admin_high(auth.uid()));
+
 
 -- ---------------------------------------------------------------------------
 -- Admins: all admins can read the table (to see roles / levels / presence)

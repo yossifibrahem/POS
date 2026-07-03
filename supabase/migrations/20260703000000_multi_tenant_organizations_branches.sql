@@ -779,6 +779,7 @@ DROP POLICY IF EXISTS "products_delete" ON public.products;
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_insert" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_update" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_delete" ON public.profiles;
 DROP POLICY IF EXISTS "admins_select" ON public.admins;
 DROP POLICY IF EXISTS "admins_insert" ON public.admins;
 DROP POLICY IF EXISTS "admins_update" ON public.admins;
@@ -996,6 +997,15 @@ CREATE POLICY "profiles_update"
       AND organization_id = public.get_profile_organization_id(auth.uid())
     )
     OR (public.is_admin_high(auth.uid()) AND public.can_access_organization(auth.uid(), organization_id))
+  );
+
+CREATE POLICY "profiles_delete"
+  ON public.profiles FOR DELETE
+  TO authenticated
+  USING (
+    id <> auth.uid()
+    AND public.is_admin_high(auth.uid())
+    AND public.can_access_organization(auth.uid(), organization_id)
   );
 
 CREATE POLICY "admins_select"

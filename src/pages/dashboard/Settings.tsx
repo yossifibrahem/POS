@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Building2, Pencil, Plus, Save } from "lucide-react";
+import { Building2, Pencil, Plus, Save, Trash2 } from "lucide-react";
 
 const emptyBranchForm = {
   name: "",
@@ -26,6 +27,7 @@ export default function Settings() {
   const [savingBranch, setSavingBranch] = useState(false);
   const [branchDialogOpen, setBranchDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<BranchContext | null>(null);
+  const [deleteBranch, setDeleteBranch] = useState<BranchContext | null>(null);
   const [organizationForm, setOrganizationForm] = useState({
     name: "",
     contact_email: "",
@@ -133,6 +135,37 @@ export default function Settings() {
     toast.success(editingBranch ? "Branch updated" : "Branch created");
   };
 
+  const handleDeleteBranch = async () => {
+    if (!deleteBranch) return;
+
+    if (deleteBranch.id === activeBranchId) {
+      toast.error("Switch to another branch before deleting this one");
+      setDeleteBranch(null);
+      return;
+    }
+
+    const activeBranches = branches.filter((branch) => branch.is_active);
+    if (deleteBranch.is_active && activeBranches.length <= 1) {
+      toast.error("At least one active branch is required");
+      setDeleteBranch(null);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("branches")
+      .delete()
+      .eq("id", deleteBranch.id);
+
+    if (error) {
+      toast.error("Cannot delete: branch has assigned admins or sales records");
+    } else {
+      await refreshTenant();
+      toast.success("Branch deleted");
+    }
+
+    setDeleteBranch(null);
+  };
+
   if (!organization) {
     return <div className="p-6 text-sm text-muted-foreground">Organization unavailable</div>;
   }
@@ -190,7 +223,10 @@ export default function Settings() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between gap-3 text-base">
                 <span className="truncate">{branch.name}</span>
-                <Badge variant={branch.is_active ? "default" : "secondary"}>{branch.is_active ? "Active" : "Inactive"}</Badge>
+                <div className="flex shrink-0 items-center gap-2">
+                  {branch.id === activeBranchId && <Badge variant="outline">Current</Badge>}
+                  <Badge variant={branch.is_active ? "default" : "secondary"}>{branch.is_active ? "Active" : "Inactive"}</Badge>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -198,12 +234,22 @@ export default function Settings() {
                 <p>{branch.phone || "No phone"}</p>
                 <p>{branch.address || "No address"}</p>
               </div>
-              {branch.id === activeBranchId && <Badge variant="outline">Current</Badge>}
               <Separator />
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditBranch(branch)}>
-                <Pencil className="h-4 w-4" />
-                Edit
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditBranch(branch)}>
+                  <Pencil className="h-4 w-4" />
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-destructive hover:text-destructive"
+                  onClick={() => setDeleteBranch(branch)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -237,6 +283,26 @@ export default function Settings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteBranch} onOpenChange={(open) => !open && setDeleteBranch(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Branch?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {deleteBranch?.name}. Branches with assigned admins or sales records cannot be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteBranch}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
