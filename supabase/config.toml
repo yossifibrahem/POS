@@ -1,4 +1,6 @@
-project_id = "raoblcesuziztldibshg"
+# Default Supabase CLI target for local development/testing.
+# Production function deploys should pass --project-ref raoblcesuziztldibshg explicitly.
+project_id = "bmbedmqbyumzezmtrlag"
 
 [functions.invite-admin]
 verify_jwt = false
