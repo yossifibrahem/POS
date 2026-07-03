@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/AuthProvider";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import AcceptInvite from "./pages/AcceptInvite";
 import PurchaseHistory from "./pages/PurchaseHistory";
 import DashboardLayout from "./components/DashboardLayout";
 import Overview from "./pages/dashboard/Overview";
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/purchase-history" element={
               <ProtectedRoute><PurchaseHistory /></ProtectedRoute>
             } />

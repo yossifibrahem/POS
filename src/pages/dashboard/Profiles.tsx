@@ -245,7 +245,7 @@ export default function Profiles() {
           phone: inviteForm.phone.trim() || null,
           level: inviteForm.level,
           branch_id: inviteForm.level === "high" ? null : inviteForm.branch_id,
-          redirect_to: window.location.origin,
+          redirect_to: `${window.location.origin}/accept-invite`,
         },
       });
 
