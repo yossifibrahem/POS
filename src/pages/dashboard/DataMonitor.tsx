@@ -234,6 +234,10 @@ export default function DataMonitor() {
   const [branchScope, setBranchScope] = useState("all");
   const [rowLimit, setRowLimit] = useState(250);
   const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>(() => defaultVisibleColumns(monitorViews[0]));
+  const activeFilterCount =
+    (filterColumn !== "all" && filterValue.trim() ? 1 : 0) +
+    (branchScope !== "all" ? 1 : 0) +
+    (rowLimit !== 250 ? 1 : 0);
 
   const activeView = useMemo(
     () => monitorViews.find((view) => view.name === viewName) || monitorViews[0],
@@ -333,6 +337,13 @@ export default function DataMonitor() {
     });
   };
 
+  const clearFilters = () => {
+    setFilterColumn("all");
+    setFilterValue("");
+    setBranchScope("all");
+    setRowLimit(250);
+  };
+
   const exportRows = () => {
     if (!filteredRows.length) {
       toast.error("No rows to export");
@@ -349,22 +360,37 @@ export default function DataMonitor() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="sticky top-[48px] z-10 space-y-3 border-b bg-background pb-3 pt-2">
-        <div className="grid gap-3 lg:grid-cols-[minmax(220px,320px)_1fr_auto]">
-          <Select value={viewName} onValueChange={setViewName}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select view" />
-            </SelectTrigger>
-            <SelectContent>
-              {monitorViews.map((view) => (
-                <SelectItem key={view.name} value={view.name}>
-                  {view.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="sticky top-[48px] z-10 bg-background py-2 lg:hidden">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Search loaded rows..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+      </div>
 
-          <div className="relative">
+      <div className="sticky top-[96px] z-10 bg-background py-2 lg:top-[48px]">
+        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(220px,300px)_minmax(320px,1fr)_auto] lg:items-center">
+          <div className="flex min-w-0 items-center gap-2">
+            <Database className="hidden h-5 w-5 shrink-0 text-muted-foreground sm:block" />
+            <Select value={viewName} onValueChange={setViewName}>
+              <SelectTrigger className="w-full md:w-[280px]">
+                <SelectValue placeholder="Select view" />
+              </SelectTrigger>
+              <SelectContent>
+                {monitorViews.map((view) => (
+                  <SelectItem key={view.name} value={view.name}>
+                    {view.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="relative hidden lg:block">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
@@ -374,19 +400,103 @@ export default function DataMonitor() {
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={loadRows} disabled={loading} aria-label="Refresh data">
+          <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end lg:flex-nowrap">
+            <Button variant="outline" size="icon" className="w-full sm:w-10" onClick={loadRows} disabled={loading} aria-label="Refresh data">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
-            <Button variant="outline" className="gap-2" onClick={exportRows}>
+            <Button variant="outline" className="w-full gap-2 px-0 sm:w-auto sm:px-4" onClick={exportRows} aria-label="Export CSV">
               <Download className="h-4 w-4" />
-              CSV
+              <span className="hidden sm:inline">CSV</span>
             </Button>
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="relative w-full gap-2 px-0 sm:w-auto sm:px-4" aria-label="Open filters">
+                  <Filter className="h-4 w-4" />
+                  <span className="hidden sm:inline">Filters</span>
+                  {activeFilterCount > 0 && (
+                    <Badge variant="secondary" className="absolute -right-1 -top-1 h-5 min-w-5 justify-center px-1.5 py-0 text-[10px] sm:static sm:ml-1">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Filters</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6 space-y-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="monitor-filter-column">Column</Label>
+                    <Select value={filterColumn} onValueChange={setFilterColumn}>
+                      <SelectTrigger id="monitor-filter-column">
+                        <SelectValue placeholder="Filter column" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">No column filter</SelectItem>
+                        {activeView.columns.map((column) => (
+                          <SelectItem key={column.key} value={column.key}>
+                            {column.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="monitor-filter-value">Value</Label>
+                    <Input
+                      id="monitor-filter-value"
+                      placeholder="Filter value..."
+                      value={filterValue}
+                      onChange={(event) => setFilterValue(event.target.value)}
+                      disabled={filterColumn === "all"}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="monitor-branch-scope">Branch</Label>
+                    <Select value={branchScope} onValueChange={setBranchScope} disabled={!activeView.branchColumn}>
+                      <SelectTrigger id="monitor-branch-scope">
+                        <SelectValue placeholder="Branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All branches</SelectItem>
+                        {branches.map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="monitor-row-limit">Rows</Label>
+                    <Select value={String(rowLimit)} onValueChange={(value) => setRowLimit(Number(value))}>
+                      <SelectTrigger id="monitor-row-limit">
+                        <SelectValue placeholder="Rows" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROW_LIMIT_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={String(option)}>
+                            {option} rows
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button variant="outline" className="w-full" onClick={clearFilters} disabled={activeFilterCount === 0}>
+                    Clear filters
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="w-full gap-2 px-0 sm:w-auto sm:px-4" aria-label="Choose columns">
                   <Columns3 className="h-4 w-4" />
-                  Columns
+                  <span className="hidden sm:inline">Columns</span>
                 </Button>
               </SheetTrigger>
               <SheetContent className="overflow-y-auto">
@@ -411,63 +521,11 @@ export default function DataMonitor() {
             </Sheet>
           </div>
         </div>
-
-        <div className="grid gap-3 md:grid-cols-[minmax(160px,220px)_minmax(180px,1fr)_minmax(160px,220px)_minmax(140px,180px)]">
-          <Select value={filterColumn} onValueChange={setFilterColumn}>
-            <SelectTrigger>
-              <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
-              <SelectValue placeholder="Filter column" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">No column filter</SelectItem>
-              {activeView.columns.map((column) => (
-                <SelectItem key={column.key} value={column.key}>
-                  {column.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            placeholder="Filter value..."
-            value={filterValue}
-            onChange={(event) => setFilterValue(event.target.value)}
-            disabled={filterColumn === "all"}
-          />
-          <Select value={branchScope} onValueChange={setBranchScope} disabled={!activeView.branchColumn}>
-            <SelectTrigger>
-              <SelectValue placeholder="Branch" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All branches</SelectItem>
-              {branches.map((branch) => (
-                <SelectItem key={branch.id} value={branch.id}>
-                  {branch.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={String(rowLimit)} onValueChange={(value) => setRowLimit(Number(value))}>
-            <SelectTrigger>
-              <SelectValue placeholder="Rows" />
-            </SelectTrigger>
-            <SelectContent>
-              {ROW_LIMIT_OPTIONS.map((option) => (
-                <SelectItem key={option} value={String(option)}>
-                  {option} rows
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 pt-5">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-muted-foreground" />
-            <h2 className="truncate text-lg font-semibold">{activeView.label}</h2>
-            <Badge variant="outline">Read only</Badge>
-          </div>
+          <h2 className="truncate text-lg font-semibold">{activeView.label}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{activeView.description}</p>
         </div>
         <div className="text-sm text-muted-foreground">
@@ -475,10 +533,10 @@ export default function DataMonitor() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border">
+      <div className="overflow-hidden rounded-lg border border-muted">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
+            <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
               <tr>
                 {visibleColumns.map((column) => (
                   <th key={column.key} className="whitespace-nowrap px-4 py-3 font-medium">
@@ -500,7 +558,7 @@ export default function DataMonitor() {
                 ))
               ) : filteredRows.length > 0 ? (
                 filteredRows.map((row, rowIndex) => (
-                  <tr key={String(row.id ?? `${activeView.name}-${rowIndex}`)} className="border-t hover:bg-muted/40">
+                  <tr key={String(row.id ?? `${activeView.name}-${rowIndex}`)} className="border-t border-muted transition-colors hover:bg-muted/40">
                     {visibleColumns.map((column) => (
                       <td key={column.key} className="max-w-[280px] px-4 py-3 align-top">
                         <span className="block truncate" title={stringifyCell(row[column.key])}>
