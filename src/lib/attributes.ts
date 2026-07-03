@@ -12,6 +12,16 @@ export function parseOptions(options: Json | undefined | null): string[] {
 }
 
 /**
+ * Safely parse product attributes from Json to a simple display/edit record.
+ */
+export function parseAttributes(attributes: Json | undefined | null): Record<string, string | number | boolean> {
+  if (typeof attributes === 'object' && attributes !== null && !Array.isArray(attributes)) {
+    return attributes as Record<string, string | number | boolean>;
+  }
+  return {};
+}
+
+/**
  * Get badge className for attribute type
  */
 export function getAttributeTypeBadgeClass(type: AttributeType): string {

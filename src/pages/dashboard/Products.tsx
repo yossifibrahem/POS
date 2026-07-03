@@ -23,7 +23,7 @@ import { filterProducts, sortProducts, SortOptions } from "@/lib/filters";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import type { CategoryAttribute, AttributeType } from "@/types/category";
-import { parseOptions } from "@/lib/attributes";
+import { parseAttributes, parseOptions } from "@/lib/attributes";
 import { sanitizeProductPayload } from "@/lib/pos/services";
 import type { Database } from "@/integrations/supabase/types";
 

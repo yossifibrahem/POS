@@ -20,6 +20,7 @@ import { filterProducts, filterCustomers, sortProducts, SortOptions } from "@/li
 import { LoadingGrid } from "@/components/LoadingGrid";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { processSale as processSaleService } from "@/lib/pos/services";
+import { parseAttributes } from "@/lib/attributes";
 import type { Database } from "@/integrations/supabase/types";
 
 interface Product {
@@ -35,14 +36,6 @@ interface Product {
   created_at: string;
   categories?: { name: string } | null;
   attributes?: Json;
-}
-
-// Helper to safely parse attributes from Json to a record
-function parseAttributes(attributes: Json | undefined): Record<string, string | number | boolean> {
-  if (typeof attributes === 'object' && attributes !== null && !Array.isArray(attributes)) {
-    return attributes as Record<string, string | number | boolean>;
-  }
-  return {};
 }
 
 interface CartItem {
