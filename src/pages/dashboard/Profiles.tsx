@@ -12,13 +12,15 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Search, Pencil, Trash2, Shield, ShieldCheck, ShieldX, User, Mail, Phone, Calendar, Sliders, Circle } from "lucide-react";
+import { Search, Pencil, Trash2, Shield, ShieldCheck, ShieldX, User, Mail, Phone, Calendar, Sliders, Circle, UserPlus } from "lucide-react";
 import { withLoading, handleError, handleSuccess } from "@/lib/api";
 import { LoadingGrid, EmptyState } from "@/components/LoadingGrid";
 import { formatDateTime, formatRelativeTime } from "@/lib/formatters";
+
+type InviteAdminLevel = Exclude<AdminLevel, null>;
 
 interface Profile {
   id: string;
@@ -37,6 +39,32 @@ interface Profile {
   is_online: boolean | null;
 }
 
+function isMessagePayload(value: unknown): value is { message: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "message" in value &&
+    typeof (value as { message?: unknown }).message === "string"
+  );
+}
+
+async function getFunctionErrorMessage(error: unknown, fallback: string): Promise<string> {
+  if (typeof error === "object" && error !== null && "context" in error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      try {
+        const payload = await context.clone().json();
+        if (isMessagePayload(payload)) return payload.message;
+      } catch {
+        return fallback;
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
 export default function Profiles() {
   const { adminLevel: currentAdminLevel, organization, branches } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -45,6 +73,15 @@ export default function Profiles() {
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterOnlineOnly, setFilterOnlineOnly] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteForm, setInviteForm] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    level: "low" as InviteAdminLevel,
+    branch_id: "",
+  });
+  const [inviting, setInviting] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editLevelId, setEditLevelId] = useState<string | null>(null);
   const [editLevelName, setEditLevelName] = useState("");
@@ -117,6 +154,19 @@ export default function Profiles() {
     onChange: load,
   });
 
+  const getDefaultBranchId = () => branches.find((branch) => branch.is_active)?.id || "";
+
+  const openInviteDialog = () => {
+    setInviteForm({
+      full_name: "",
+      email: "",
+      phone: "",
+      level: "low",
+      branch_id: getDefaultBranchId(),
+    });
+    setInviteDialogOpen(true);
+  };
+
   const openEdit = (p: Profile) => {
     setEditing(p);
     setForm({ full_name: p.full_name, email: p.email, phone: p.phone || "" });
@@ -157,6 +207,60 @@ export default function Profiles() {
       load();
     }
     setSaving(false);
+  };
+
+  const handleInviteAdmin = async () => {
+    if (!canManageAdmins(currentAdminLevel)) {
+      toast.error("Only high admins can invite admins");
+      return;
+    }
+
+    if (!organization) {
+      toast.error("Organization is required");
+      return;
+    }
+
+    if (!inviteForm.full_name.trim()) {
+      toast.error("Full name is required");
+      return;
+    }
+
+    if (!inviteForm.email.trim()) {
+      toast.error("Email is required");
+      return;
+    }
+
+    if (inviteForm.level !== "high" && !inviteForm.branch_id) {
+      toast.error("Branch assignment is required for medium and low admins");
+      return;
+    }
+
+    try {
+      setInviting(true);
+
+      const { error } = await supabase.functions.invoke("invite-admin", {
+        body: {
+          email: inviteForm.email.trim(),
+          full_name: inviteForm.full_name.trim(),
+          phone: inviteForm.phone.trim() || null,
+          level: inviteForm.level,
+          branch_id: inviteForm.level === "high" ? null : inviteForm.branch_id,
+          redirect_to: window.location.origin,
+        },
+      });
+
+      if (error) {
+        toast.error(await getFunctionErrorMessage(error, "Failed to send invite"));
+      } else {
+        handleSuccess("Invite sent");
+        setInviteDialogOpen(false);
+        load();
+      }
+    } catch (error) {
+      toast.error(await getFunctionErrorMessage(error, "Failed to send invite"));
+    } finally {
+      setInviting(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -333,14 +437,23 @@ export default function Profiles() {
     <div className="p-4 md:p-6">
       {/* Search bar row */}
       <div className="sticky top-[48px] z-10 bg-background py-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input 
-            placeholder="Search by name, email or phone..." 
-            className="pl-9" 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)} 
-          />
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input 
+              placeholder="Search by name, email or phone..." 
+              className="pl-9" 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+            />
+          </div>
+          {canManageAdmins(currentAdminLevel) && (
+            <Button onClick={openInviteDialog} className="shrink-0">
+              <UserPlus className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Invite Admin</span>
+              <span className="sm:hidden">Invite</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -470,6 +583,95 @@ export default function Profiles() {
           )}
         </div>
       </div>
+
+      {/* Invite Admin Dialog */}
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Invite Admin</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="inviteFullName">Full Name</Label>
+              <Input
+                id="inviteFullName"
+                value={inviteForm.full_name}
+                onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })}
+                placeholder="Jane Doe"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="inviteEmail">Email</Label>
+              <Input
+                id="inviteEmail"
+                type="email"
+                value={inviteForm.email}
+                onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                placeholder="admin@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invitePhone">Phone</Label>
+              <Input
+                id="invitePhone"
+                type="tel"
+                value={inviteForm.phone}
+                onChange={(e) => setInviteForm({ ...inviteForm, phone: e.target.value })}
+                placeholder="Optional"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Admin Level</Label>
+              <Select
+                value={inviteForm.level}
+                onValueChange={(value) => {
+                  const level = value as InviteAdminLevel;
+                  setInviteForm({
+                    ...inviteForm,
+                    level,
+                    branch_id: level === "high" ? "" : inviteForm.branch_id || getDefaultBranchId(),
+                  });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select level..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="high">High - Full Access</SelectItem>
+                  <SelectItem value="med">Med - No Cost/Profit View</SelectItem>
+                  <SelectItem value="low">Low - Sales Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {inviteForm.level !== "high" && (
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <Select
+                  value={inviteForm.branch_id}
+                  onValueChange={(branch_id) => setInviteForm({ ...inviteForm, branch_id })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select branch..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.filter((branch) => branch.is_active).map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteDialogOpen(false)} disabled={inviting}>
+              Cancel
+            </Button>
+            <Button onClick={handleInviteAdmin} disabled={inviting}>
+              {inviting ? "Sending..." : "Send Invite"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Profile Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
