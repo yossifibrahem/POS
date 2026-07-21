@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { canSeeCostAndProfit } from "@/lib/permissions";
-import { useInventoryRealtime, useCustomerRealtime } from "@/hooks/useRealtimeSubscription";
+import { useInventoryRealtime } from "@/hooks/useRealtimeSubscription";
 import type { Json } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Search, Plus, Minus, X, ShoppingCart } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-import { filterProducts, filterCustomers, sortProducts, SortOptions } from "@/lib/filters";
+import { filterProducts, sortProducts, SortOptions } from "@/lib/filters";
 import { LoadingGrid } from "@/components/LoadingGrid";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { processSale as processSaleService } from "@/lib/pos/services";
@@ -50,13 +50,6 @@ interface Profile {
   email: string;
 }
 
-interface Customer {
-  id: string;
-  created_at: string;
-  full_name: string;
-  email: string;
-}
-
 type ProductBranchRow = Database["public"]["Views"]["products_with_branch_stock"]["Row"];
 
 function mapProductRow(product: ProductBranchRow): Product {
@@ -81,14 +74,11 @@ export default function NewSale() {
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
   const [sort, setSort] = useState<SortOptions>({ field: "name", direction: "asc" });
   const [hideOutOfStock, setHideOutOfStock] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [customerId, setCustomerId] = useState("walk-in");
-  const [customerSearch, setCustomerSearch] = useState("");
   const [notes, setNotes] = useState("");
   const [processing, setProcessing] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -99,7 +89,6 @@ export default function NewSale() {
     setLoading(true);
     if (!activeBranchId) {
       setProducts([]);
-      setCustomers([]);
       setCategories([]);
       setLoading(false);
       return;
@@ -107,11 +96,9 @@ export default function NewSale() {
 
     Promise.all([
       supabase.from("products_with_branch_stock").select("*").eq("branch_id", activeBranchId).order("name"),
-      supabase.from("profiles").select("id, created_at, full_name, email").order("full_name"),
       supabase.from("categories").select("*"),
-    ]).then(([productsRes, customersRes, categoriesRes]) => {
+    ]).then(([productsRes, categoriesRes]) => {
       setProducts((productsRes.data || []).map(mapProductRow));
-      setCustomers(customersRes.data || []);
       setCategories(categoriesRes.data || []);
       setLoading(false);
     });
@@ -136,11 +123,6 @@ export default function NewSale() {
     setCategories(data || []);
   }, []);
 
-  const refreshCustomers = useCallback(async () => {
-    const { data } = await supabase.from("profiles").select("id, created_at, full_name, email").order("full_name");
-    setCustomers(data || []);
-  }, []);
-
   // Realtime subscriptions - keep data fresh
   const handleInventoryChange = useCallback(() => {
     refreshProducts();
@@ -150,11 +132,6 @@ export default function NewSale() {
   useInventoryRealtime({
     onChange: handleInventoryChange,
   });
-
-  useCustomerRealtime({
-    onChange: refreshCustomers,
-  });
-
 
   const addToCart = (product: Product) => {
     setCart((prev) => {
@@ -195,9 +172,8 @@ export default function NewSale() {
     setProcessing(true);
 
     try {
-      const customerIdForSale = customerId === "walk-in" ? null : customerId;
       const result = await processSaleService({
-        customerId: customerIdForSale,
+        customerId: null,
         processedBy: user.id,
         branchId: activeBranchId,
         notes: notes || null,
@@ -211,7 +187,6 @@ export default function NewSale() {
 
       toast.success(`Sale completed! Total: ${formatCurrency(result.total)}`);
       setCart([]);
-      setCustomerId("walk-in");
       setNotes("");
       setCartOpen(false);
       await refreshProducts();
@@ -228,8 +203,6 @@ export default function NewSale() {
     filterProducts(products, search, filterCat).filter((p) => !hideOutOfStock || p.stock > 0),
     sort
   );
-  const filteredCustomers = filterCustomers(customers, customerSearch);
-
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   const openDetail = (p: Product) => {
@@ -361,20 +334,6 @@ export default function NewSale() {
             </SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-            {/* Customer selector */}
-            <div className="space-y-2">
-              <Label>Customer</Label>
-              <Select value={customerId} onValueChange={setCustomerId}>
-                <SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="walk-in">Walk-in Customer</SelectItem>
-                  {filteredCustomers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.full_name || "Unknown"} ({c.email || "—"})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Cart items */}
             {cart.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">Use the "Add" button on products to add them to the cart</p>
